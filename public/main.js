@@ -194,13 +194,22 @@ document.getElementById('btnConfirmCreate').addEventListener('click', () => {
 let mapsLoaded = false;
 function enterLobby() {
   showScreen('screen-lobby');
-  if (!mapsLoaded) {
-    socket.emit('getMaps', (maps) => {
-      const sel = document.getElementById('settingMap');
-      sel.innerHTML = maps.map(m => `<option value="${m}">${m}</option>`).join('');
-      mapsLoaded = true;
-    });
-  }
+  socket.emit('getMaps', (maps) => {
+    const sel = document.getElementById('settingMap');
+    if (!maps.length) {
+      sel.innerHTML = `<option value="">(harita yok)</option>`;
+    } else {
+      sel.innerHTML = maps.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+    }
+    mapsLoaded = true;
+    // sunucudan gelen mevcut oda ayarını uygula (varsa)
+    if (window._lastRoomState) applyMapSelection(window._lastRoomState.settings.map);
+  });
+}
+
+function applyMapSelection(mapId) {
+  const sel = document.getElementById('settingMap');
+  if (mapId && [...sel.options].some(o => o.value === mapId)) sel.value = mapId;
 }
 
 socket.on('roomState', (room) => {
@@ -232,9 +241,10 @@ function renderLobby(room) {
   document.getElementById('btnStartGame').classList.toggle('hidden', !isHost);
   document.getElementById('notHostHint').classList.toggle('hidden', isHost);
 
+  window._lastRoomState = room;
   document.getElementById('settingTime').value = room.settings.timeLimit;
   document.getElementById('settingStock').value = room.settings.stockLimit;
-  if (mapsLoaded) document.getElementById('settingMap').value = room.settings.map;
+  if (mapsLoaded) applyMapSelection(room.settings.map);
 
   [document.getElementById('settingTime'), document.getElementById('settingStock'), document.getElementById('settingMap')]
     .forEach(el => el.disabled = !isHost);
@@ -282,6 +292,8 @@ let keys = { w: false, a: false, s: false, d: false };
 let gameLoopRunning = false;
 let lastFrameTime = 0;
 let lastSendTime = 0;
+let currentMap = null; // {width,height,platforms,image}
+let mapBgImage = null;
 
 window.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
@@ -294,6 +306,13 @@ window.addEventListener('keyup', (e) => {
 
 socket.on('gameStarting', (data) => {
   gamePlayers = data.players || {};
+  currentMap = data.map || null;
+  mapBgImage = null;
+  if (currentMap && currentMap.image) {
+    const img = new Image();
+    img.onload = () => { mapBgImage = img; };
+    img.src = currentMap.image;
+  }
   if (gamePlayers[socket.id]) {
     myPos.x = gamePlayers[socket.id].x;
     myPos.y = gamePlayers[socket.id].y;
@@ -348,6 +367,19 @@ function renderGame() {
   ctx.clearRect(0, 0, WORLD_W, WORLD_H);
   ctx.fillStyle = '#223522';
   ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+
+  if (mapBgImage) {
+    ctx.drawImage(mapBgImage, 0, 0, WORLD_W, WORLD_H);
+  }
+  if (currentMap && currentMap.platforms) {
+    ctx.fillStyle = 'rgba(80,200,120,0.25)';
+    ctx.strokeStyle = '#4fae6a';
+    ctx.lineWidth = 2;
+    currentMap.platforms.forEach(pl => {
+      ctx.fillRect(pl.x, pl.y, pl.w, pl.h);
+      ctx.strokeRect(pl.x, pl.y, pl.w, pl.h);
+    });
+  }
 
   Object.entries(gamePlayers).forEach(([id, p]) => {
     ctx.fillStyle = p.team === 'red' ? '#e05c3f' : '#4a90d9';
