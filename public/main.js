@@ -286,7 +286,7 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const WORLD_W = 1280, WORLD_H = 720, SQUARE = 40;
 const MOVE_SPEED = 300;      // px/sn yatay hız
-const GRAVITY = 1200;        // px/sn^2
+const GRAVITY = 1500;        // px/sn^2
 const JUMP_VELOCITY = -620;  // zıplama ilk hızı
 const DROP_THROUGH_MS = 350; // S ile platformdan inme süresi
 
@@ -385,8 +385,10 @@ function gameLoop(now) {
   let newBottom = myPos.y + SQUARE;
   onGround = false;
 
-  if (!droppingThrough && myVel.y >= 0) {
+  if (myVel.y >= 0) {
     getPlatforms().forEach(pl => {
+      const isThin = pl.h <= 20;
+      if (droppingThrough && isThin) return; // ince platformlardan geçiliyor
       const withinX = myPos.x + SQUARE > pl.x && myPos.x < pl.x + pl.w;
       if (withinX && prevBottom <= pl.y + 1 && newBottom >= pl.y) {
         myPos.y = pl.y - SQUARE;
