@@ -281,13 +281,22 @@ document.getElementById('btnLeaveRoom').addEventListener('click', () => {
 
 socket.on('errorMsg', (msg) => showToast(msg));
 
-// ---- Basit oyun prototipi: WASD ile serbest hareket eden kareler ----
+// ---- Basit oyun prototipi: platform fiziği (yerçekimi, zıplama, çarpışma) ----
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const WORLD_W = 1280, WORLD_H = 720, SQUARE = 40, SPEED = 320; // px/sn
+const WORLD_W = 1280, WORLD_H = 720, SQUARE = 40;
+const MOVE_SPEED = 300;      // px/sn yatay hız
+const GRAVITY = 1500;        // px/sn^2
+const JUMP_VELOCITY = -620;  // zıplama ilk hızı
+const DROP_THROUGH_MS = 350; // S ile platformdan inme süresi
 
 let gamePlayers = {}; // socket.id -> {x,y,name,team}
 let myPos = { x: 0, y: 0 };
+let myVel = { x: 0, y: 0 };
+let onGround = false;
+let dropThroughUntil = 0;
+let jumpRequested = false;
+let dropRequested = false;
 let keys = { w: false, a: false, s: false, d: false };
 let gameLoopRunning = false;
 let lastFrameTime = 0;
@@ -297,7 +306,10 @@ let mapBgImage = null;
 
 window.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
-  if (k in keys) keys[k] = true;
+  if (!(k in keys)) return;
+  if (k === 'w' && !keys.w) jumpRequested = true;
+  if (k === 's' && !keys.s) dropRequested = true;
+  keys[k] = true;
 });
 window.addEventListener('keyup', (e) => {
   const k = e.key.toLowerCase();
@@ -320,6 +332,9 @@ socket.on('gameStarting', (data) => {
     myPos.x = WORLD_W / 2;
     myPos.y = WORLD_H / 2;
   }
+  myVel.x = 0; myVel.y = 0;
+  onGround = false;
+  dropThroughUntil = 0;
   showScreen('screen-game');
   if (!gameLoopRunning) {
     gameLoopRunning = true;
@@ -332,21 +347,63 @@ socket.on('playersUpdate', (players) => {
   gamePlayers = players;
 });
 
+function getPlatforms() {
+  return (currentMap && currentMap.platforms) ? currentMap.platforms : [];
+}
+
 function gameLoop(now) {
   const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
   lastFrameTime = now;
 
-  let dx = 0, dy = 0;
-  if (keys.w) dy -= 1;
-  if (keys.s) dy += 1;
+  // ---- Yatay hareket ----
+  let dx = 0;
   if (keys.a) dx -= 1;
   if (keys.d) dx += 1;
-  if (dx !== 0 || dy !== 0) {
-    const len = Math.hypot(dx, dy);
-    dx /= len; dy /= len;
-    myPos.x = Math.min(Math.max(myPos.x + dx * SPEED * dt, 0), WORLD_W - SQUARE);
-    myPos.y = Math.min(Math.max(myPos.y + dy * SPEED * dt, 0), WORLD_H - SQUARE);
+  myVel.x = dx * MOVE_SPEED;
+  myPos.x = clampNum(myPos.x + myVel.x * dt, 0, WORLD_W - SQUARE);
+
+  // ---- Platformdan aşağı inme (S) ----
+  if (dropRequested) {
+    dropRequested = false;
+    if (onGround) dropThroughUntil = now + DROP_THROUGH_MS;
   }
+  const droppingThrough = now < dropThroughUntil;
+
+  // ---- Zıplama ----
+  if (jumpRequested) {
+    jumpRequested = false;
+    if (onGround) {
+      myVel.y = JUMP_VELOCITY;
+      onGround = false;
+    }
+  }
+
+  // ---- Yerçekimi ----
+  myVel.y += GRAVITY * dt;
+  const prevBottom = myPos.y + SQUARE;
+  myPos.y += myVel.y * dt;
+  let newBottom = myPos.y + SQUARE;
+  onGround = false;
+
+  if (!droppingThrough && myVel.y >= 0) {
+    getPlatforms().forEach(pl => {
+      const withinX = myPos.x + SQUARE > pl.x && myPos.x < pl.x + pl.w;
+      if (withinX && prevBottom <= pl.y + 1 && newBottom >= pl.y) {
+        myPos.y = pl.y - SQUARE;
+        myVel.y = 0;
+        onGround = true;
+        newBottom = pl.y;
+      }
+    });
+  }
+
+  // Dünyanın altı geçici zemin (elenme sistemi henüz eklenmedi)
+  if (myPos.y + SQUARE >= WORLD_H) {
+    myPos.y = WORLD_H - SQUARE;
+    myVel.y = 0;
+    onGround = true;
+  }
+  if (myPos.y < 0) { myPos.y = 0; myVel.y = 0; }
 
   if (now - lastSendTime > 40) { // ~25hz
     lastSendTime = now;
@@ -363,6 +420,8 @@ function gameLoop(now) {
   requestAnimationFrame(gameLoop);
 }
 
+function clampNum(v, min, max) { return Math.min(Math.max(v, min), max); }
+
 function renderGame() {
   ctx.clearRect(0, 0, WORLD_W, WORLD_H);
   ctx.fillStyle = '#223522';
@@ -371,15 +430,7 @@ function renderGame() {
   if (mapBgImage) {
     ctx.drawImage(mapBgImage, 0, 0, WORLD_W, WORLD_H);
   }
-  if (currentMap && currentMap.platforms) {
-    ctx.fillStyle = 'rgba(80,200,120,0.25)';
-    ctx.strokeStyle = '#4fae6a';
-    ctx.lineWidth = 2;
-    currentMap.platforms.forEach(pl => {
-      ctx.fillRect(pl.x, pl.y, pl.w, pl.h);
-      ctx.strokeRect(pl.x, pl.y, pl.w, pl.h);
-    });
-  }
+  // Platformlar görünmez - sadece arka plan görselindeki çizim kullanılıyor
 
   Object.entries(gamePlayers).forEach(([id, p]) => {
     ctx.fillStyle = p.team === 'red' ? '#e05c3f' : '#4a90d9';
