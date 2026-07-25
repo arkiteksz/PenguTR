@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harita Editörü - Penguen Savaşları</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="editor.css">
+</head>
+<body>
+<div class="bg-stripes"></div>
+
+<div class="editor-layout">
+  <div class="editor-canvas-area">
+    <div class="editor-toolbar">
+      <label class="btn file-btn">
+        🖼 Arka Plan Yükle
+        <input type="file" id="bgUpload" accept="image/*" hidden>
+      </label>
+      <button class="btn tool-btn" data-tool="select">↖ Seç / Taşı</button>
+      <button class="btn tool-btn" data-tool="platform">▭ Platform Çiz</button>
+      <button class="btn tool-btn" data-tool="spawn-red">🔴 Red Spawn</button>
+      <button class="btn tool-btn" data-tool="spawn-blue">🔵 Blue Spawn</button>
+      <button class="btn" id="btnDeleteSelected">🗑 Seçileni Sil</button>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="editorCanvas" width="1280" height="720"></canvas>
+    </div>
+    <div class="editor-hint">
+      İpucu: "Platform Çiz" seçiliyken tıklayıp sürükleyerek dikdörtgen çiz. "Seç/Taşı" ile mevcut kutuları sürükle veya köşesinden tutup boyutlandır. Spawn modlarında tek tıkla nokta ekle.
+    </div>
+  </div>
+
+  <div class="editor-sidebar">
+    <h3>Harita Bilgisi</h3>
+    <label>Harita adı</label>
+    <input type="text" id="mapName" value="Yeni Harita" maxlength="30">
+
+    <h3>Platformlar (<span id="platformCount">0</span>)</h3>
+    <div id="platformList" class="entity-list"></div>
+
+    <h3>Red Spawn (<span id="redCount">0</span>)</h3>
+    <div id="redSpawnList" class="entity-list"></div>
+
+    <h3>Blue Spawn (<span id="blueCount">0</span>)</h3>
+    <div id="blueSpawnList" class="entity-list"></div>
+
+    <button class="btn btn-primary" id="btnExport" style="width:100%; margin-top:16px;">⬇ JSON Olarak İndir</button>
+    <label class="btn" style="width:100%; margin-top:8px; display:block; text-align:center;">
+      ⬆ JSON Yükle (Devam Et)
+      <input type="file" id="jsonUpload" accept="application/json" hidden>
+    </label>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<script src="editor.js"></script>
+</body>
+</html>
