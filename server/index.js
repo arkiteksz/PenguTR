@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 const { Server } = require('socket.io');
 
 const app = express();
@@ -16,7 +17,39 @@ const rooms = new Map();
 // socket.id -> { name, roomId }
 const players = new Map();
 
-const MAPS = ['Klasik Buz', 'Kutup Kalesi', 'Kırık Adalar'];
+const MAPS_DIR = path.join(__dirname, '..', 'public', 'maps');
+
+// mapId -> { id, name, width, height, platforms, spawns }
+function loadMaps() {
+  const result = new Map();
+  if (!fs.existsSync(MAPS_DIR)) return result;
+  const files = fs.readdirSync(MAPS_DIR).filter(f => f.endsWith('.json'));
+  files.forEach(f => {
+    try {
+      const raw = fs.readFileSync(path.join(MAPS_DIR, f), 'utf-8');
+      const data = JSON.parse(raw);
+      const id = f.replace(/\.json$/, '');
+      result.set(id, {
+        id,
+        name: data.name || id,
+        width: data.width || 1280,
+        height: data.height || 720,
+        platforms: data.platforms || [],
+        spawns: data.spawns || { red: [], blue: [] },
+        image: `/maps/${id}.png`,
+      });
+    } catch (e) {
+      console.error('Harita okunamadı:', f, e.message);
+    }
+  });
+  return result;
+}
+
+let MAPS = loadMaps();
+function getDefaultMapId() {
+  const keys = Array.from(MAPS.keys());
+  return keys.length ? keys[0] : null;
+}
 
 function genRoomId() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -134,7 +167,7 @@ io.on('connection', (socket) => {
       showInList: opts.showInList !== false,
       locked: false,
       players: new Map(),
-      settings: { timeLimit: 3, stockLimit: 3, map: MAPS[0] },
+      settings: { timeLimit: 3, stockLimit: 3, map: getDefaultMapId() },
     };
     rooms.set(id, room);
 
@@ -219,7 +252,7 @@ io.on('connection', (socket) => {
 
     if (settings.timeLimit !== undefined) room.settings.timeLimit = Math.min(Math.max(parseInt(settings.timeLimit) || 0, 0), 60);
     if (settings.stockLimit !== undefined) room.settings.stockLimit = Math.min(Math.max(parseInt(settings.stockLimit) || 1, 1), 20);
-    if (settings.map !== undefined && MAPS.includes(settings.map)) room.settings.map = settings.map;
+    if (settings.map !== undefined && MAPS.has(settings.map)) room.settings.map = settings.map;
     broadcastRoomState(room.id);
   });
 
@@ -238,19 +271,30 @@ io.on('connection', (socket) => {
       return;
     }
 
-    room.game = { active: true, players: {} };
+    MAPS = loadMaps();
+    const mapData = MAPS.get(room.settings.map) || Array.from(MAPS.values())[0];
+    if (!mapData) {
+      socket.emit('errorMsg', 'Hiç harita bulunamadı, public/maps klasörüne bir harita ekle');
+      return;
+    }
+
+    room.game = { active: true, players: {}, mapId: mapData.id };
     let ri = 0, bi = 0;
+    const redSpawns = mapData.spawns.red && mapData.spawns.red.length ? mapData.spawns.red : [{ x: 200, y: 500 }];
+    const blueSpawns = mapData.spawns.blue && mapData.spawns.blue.length ? mapData.spawns.blue : [{ x: 1080, y: 500 }];
     room.players.forEach(p => {
       if (p.team === 'red') {
-        room.game.players[p.id] = { x: 150 + ri * 60, y: 600, name: p.name, team: p.team };
+        const sp = redSpawns[ri % redSpawns.length];
+        room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team };
         ri++;
       } else if (p.team === 'blue') {
-        room.game.players[p.id] = { x: 1100 - bi * 60, y: 600, name: p.name, team: p.team };
+        const sp = blueSpawns[bi % blueSpawns.length];
+        room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team };
         bi++;
       }
     });
 
-    io.to(room.id).emit('gameStarting', { settings: room.settings, players: room.game.players });
+    io.to(room.id).emit('gameStarting', { settings: room.settings, players: room.game.players, map: mapData });
   });
 
   socket.on('playerMove', (pos) => {
@@ -265,7 +309,11 @@ io.on('connection', (socket) => {
     io.to(room.id).emit('playersUpdate', room.game.players);
   });
 
-  socket.on('getMaps', (cb) => cb && cb(MAPS));
+  socket.on('getMaps', (cb) => {
+    MAPS = loadMaps(); // her istekte diskten tekrar oku (yeni eklenen haritaları yakalamak için)
+    const list = Array.from(MAPS.values()).map(m => ({ id: m.id, name: m.name }));
+    cb && cb(list);
+  });
 
   socket.on('disconnect', () => {
     removePlayerFromRoom(socket);
