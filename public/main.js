@@ -286,7 +286,7 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const WORLD_W = 1280, WORLD_H = 720, SQUARE = 40;
 const MOVE_SPEED = 300;      // px/sn yatay hız
-const GRAVITY = 1500;        // px/sn^2
+const GRAVITY = 1300;        // px/sn^2
 const JUMP_VELOCITY = -620;  // zıplama ilk hızı
 const DROP_THROUGH_MS = 350; // S ile platformdan inme süresi
 
