@@ -297,7 +297,7 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const WORLD_W = 1280, WORLD_H = 720, SQUARE = 40;
 const MOVE_SPEED = 300;      // px/sn yatay hız
-const GRAVITY = 1500;        // px/sn^2
+const GRAVITY = 1300;        // px/sn^2
 const JUMP_VELOCITY = -620;  // zıplama ilk hızı
 const DROP_THROUGH_MS = 350; // S ile platformdan inme süresi
 
@@ -346,7 +346,7 @@ function tintFrame(img, colorHex) {
     if (d[i + 3] === 0) continue;
     const r = d[i], g = d[i + 1], b = d[i + 2];
     const maxc = Math.max(r, g, b), minc = Math.min(r, g, b);
-    if (maxc - minc < 25) { // gri ton -> renklendir, renkli pikselleri (gaga/ayak) dokunma
+    if (maxc - minc < 25 && r < 195) { // gri ton VE beyaza yakın değil -> boya (göz beyazı/karın beyaz kalır)
       const lum = r / 255;
       d[i] = lum * cr; d[i + 1] = lum * cg; d[i + 2] = lum * cb;
     }
