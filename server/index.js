@@ -91,7 +91,7 @@ function roomStateForClient(room) {
     hasPassword: !!room.password,
     locked: room.locked,
     settings: room.settings,
-   players: Array.from(room.players.values()).map(p => ({
+    players: Array.from(room.players.values()).map(p => ({
       id: p.id,
       name: p.name,
       team: p.team,
@@ -146,14 +146,14 @@ io.on('connection', (socket) => {
     cb && cb({ ok: true, name });
   });
 
-socket.on('setSkin', (skin, cb) => {
+  socket.on('setSkin', (skin, cb) => {
     const info = players.get(socket.id);
     if (!info) return;
     const allowed = ['blue', 'green', 'black', 'purple'];
     info.skin = allowed.includes(skin) ? skin : 'blue';
     cb && cb({ ok: true, skin: info.skin });
   });
-  
+
   socket.on('enterLobbyBrowser', (cb) => {
     socket.join('lobby-browser');
     cb && cb({ rooms: publicRoomList(), stats: { totalPlayers: players.size, totalRooms: rooms.size } });
@@ -203,7 +203,7 @@ socket.on('setSkin', (skin, cb) => {
     const info = players.get(socket.id);
     info.roomId = room.id;
     socket.join(room.id);
-room.players.set(socket.id, {
+    room.players.set(socket.id, {
       id: socket.id,
       name: info.name,
       team: 'spectator',
