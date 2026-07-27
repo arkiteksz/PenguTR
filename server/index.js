@@ -91,11 +91,12 @@ function roomStateForClient(room) {
     hasPassword: !!room.password,
     locked: room.locked,
     settings: room.settings,
-    players: Array.from(room.players.values()).map(p => ({
+   players: Array.from(room.players.values()).map(p => ({
       id: p.id,
       name: p.name,
       team: p.team,
       isHost: p.isHost,
+      skin: p.skin,
     })),
   };
 }
@@ -202,11 +203,12 @@ socket.on('setSkin', (skin, cb) => {
     const info = players.get(socket.id);
     info.roomId = room.id;
     socket.join(room.id);
-    room.players.set(socket.id, {
+room.players.set(socket.id, {
       id: socket.id,
       name: info.name,
       team: 'spectator',
       isHost,
+      skin: info.skin || 'blue',
     });
     socket.leave('lobby-browser');
     broadcastRoomState(room.id);
@@ -293,11 +295,11 @@ socket.on('setSkin', (skin, cb) => {
     room.players.forEach(p => {
       if (p.team === 'red') {
         const sp = redSpawns[ri % redSpawns.length];
-        room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team };
+        room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin };
         ri++;
       } else if (p.team === 'blue') {
         const sp = blueSpawns[bi % blueSpawns.length];
-        room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team };
+        room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin };
         bi++;
       }
     });
