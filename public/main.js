@@ -30,12 +30,23 @@ const nameInput = document.getElementById('nameInput');
 nameInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') submitName();
 });
+let selectedSkin = 'blue';
+document.querySelectorAll('.skin-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.skin-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedSkin = btn.dataset.skin;
+  });
+});
+
 function submitName() {
   const val = nameInput.value.trim();
   if (!val) return;
   socket.emit('setName', val, (res) => {
     myName = res.name;
-    enterRoomList();
+    socket.emit('setSkin', selectedSkin, () => {
+      enterRoomList();
+    });
   });
 }
 
@@ -286,7 +297,7 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const WORLD_W = 1280, WORLD_H = 720, SQUARE = 40;
 const MOVE_SPEED = 300;      // px/sn yatay hız
-const GRAVITY = 1300;        // px/sn^2
+const GRAVITY = 1500;        // px/sn^2
 const JUMP_VELOCITY = -620;  // zıplama ilk hızı
 const DROP_THROUGH_MS = 350; // S ile platformdan inme süresi
 
@@ -303,6 +314,59 @@ let lastFrameTime = 0;
 let lastSendTime = 0;
 let currentMap = null; // {width,height,platforms,image}
 let mapBgImage = null;
+
+// ---- Karakter sprite / renklendirme ----
+const SKIN_COLORS = { blue: '#3d6fb0', green: '#3d8f4a', black: '#2a2a2a', purple: '#7a3d9e' };
+const WALK_FRAME_COUNT = 4;
+const walkFramesRaw = [];
+const tintedCache = {};
+let framesLoadedCount = 0;
+
+for (let i = 1; i <= WALK_FRAME_COUNT; i++) {
+  const img = new Image();
+  img.onload = () => {
+    framesLoadedCount++;
+    if (framesLoadedCount === WALK_FRAME_COUNT) precomputeTints();
+  };
+  img.src = `/assets/character/walk_${i}.png`;
+  walkFramesRaw.push(img);
+}
+
+function tintFrame(img, colorHex) {
+  const off = document.createElement('canvas');
+  off.width = img.width; off.height = img.height;
+  const octx = off.getContext('2d');
+  octx.drawImage(img, 0, 0);
+  const imgData = octx.getImageData(0, 0, off.width, off.height);
+  const d = imgData.data;
+  const cr = parseInt(colorHex.slice(1, 3), 16);
+  const cg = parseInt(colorHex.slice(3, 5), 16);
+  const cb = parseInt(colorHex.slice(5, 7), 16);
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue;
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    const maxc = Math.max(r, g, b), minc = Math.min(r, g, b);
+    if (maxc - minc < 25) { // gri ton -> renklendir, renkli pikselleri (gaga/ayak) dokunma
+      const lum = r / 255;
+      d[i] = lum * cr; d[i + 1] = lum * cg; d[i + 2] = lum * cb;
+    }
+  }
+  octx.putImageData(imgData, 0, 0);
+  return off;
+}
+
+function precomputeTints() {
+  Object.keys(SKIN_COLORS).forEach(skin => {
+    walkFramesRaw.forEach((img, idx) => {
+      tintedCache[skin + '_' + idx] = tintFrame(img, SKIN_COLORS[skin]);
+    });
+  });
+}
+function getTintedFrame(skin, frameIdx) {
+  return tintedCache[(skin || 'blue') + '_' + frameIdx] || null;
+}
+
+let playerVisual = {}; // id -> {facing, frame, timer, moving, prevX}
 
 window.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
@@ -418,11 +482,37 @@ function gameLoop(now) {
     gamePlayers[socket.id].y = myPos.y;
   }
 
+  updateVisualStates(dt);
   renderGame();
   requestAnimationFrame(gameLoop);
 }
 
 function clampNum(v, min, max) { return Math.min(Math.max(v, min), max); }
+
+function updateVisualStates(dt) {
+  Object.entries(gamePlayers).forEach(([id, p]) => {
+    if (!playerVisual[id]) playerVisual[id] = { facing: 1, frame: 0, timer: 0, moving: false, prevX: p.x };
+    const vs = playerVisual[id];
+
+    if (id === socket.id) {
+      if (keys.a && !keys.d) vs.facing = -1;
+      else if (keys.d && !keys.a) vs.facing = 1;
+      vs.moving = keys.a || keys.d;
+    } else {
+      const dx = p.x - vs.prevX;
+      if (Math.abs(dx) > 0.5) vs.facing = dx > 0 ? 1 : -1;
+      vs.moving = Math.abs(dx) > 0.5;
+    }
+    vs.prevX = p.x;
+
+    if (vs.moving) {
+      vs.timer += dt;
+      if (vs.timer > 0.12) { vs.timer = 0; vs.frame = (vs.frame + 1) % WALK_FRAME_COUNT; }
+    } else {
+      vs.frame = 0; vs.timer = 0;
+    }
+  });
+}
 
 function renderGame() {
   ctx.clearRect(0, 0, WORLD_W, WORLD_H);
@@ -434,14 +524,28 @@ function renderGame() {
   }
   // Platformlar görünmez - sadece arka plan görselindeki çizim kullanılıyor
 
+  const DRAW_W = 60, DRAW_H = 75;
+
   Object.entries(gamePlayers).forEach(([id, p]) => {
-    ctx.fillStyle = p.team === 'red' ? '#e05c3f' : '#4a90d9';
-    if (id === socket.id) ctx.fillStyle = '#f0c040';
-    ctx.fillRect(p.x, p.y, SQUARE, SQUARE);
+    const vs = playerVisual[id] || { facing: 1, frame: 0 };
+    const tinted = getTintedFrame(p.skin, vs.frame);
+    const cx = p.x + SQUARE / 2;
+    const bottomY = p.y + SQUARE;
+
+    ctx.save();
+    ctx.translate(cx, bottomY);
+    if (vs.facing === -1) ctx.scale(-1, 1);
+    if (tinted) {
+      ctx.drawImage(tinted, -DRAW_W / 2, -DRAW_H, DRAW_W, DRAW_H);
+    } else {
+      ctx.fillStyle = SKIN_COLORS[p.skin] || '#888';
+      ctx.fillRect(-SQUARE / 2, -SQUARE, SQUARE, SQUARE);
+    }
+    ctx.restore();
 
     ctx.fillStyle = '#fff';
     ctx.font = '13px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(p.name, p.x + SQUARE / 2, p.y - 8);
+    ctx.fillText(p.name, cx, bottomY - DRAW_H - 6);
   });
 }
