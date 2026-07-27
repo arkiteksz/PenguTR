@@ -145,6 +145,14 @@ io.on('connection', (socket) => {
     cb && cb({ ok: true, name });
   });
 
+socket.on('setSkin', (skin, cb) => {
+    const info = players.get(socket.id);
+    if (!info) return;
+    const allowed = ['blue', 'green', 'black', 'purple'];
+    info.skin = allowed.includes(skin) ? skin : 'blue';
+    cb && cb({ ok: true, skin: info.skin });
+  });
+  
   socket.on('enterLobbyBrowser', (cb) => {
     socket.join('lobby-browser');
     cb && cb({ rooms: publicRoomList(), stats: { totalPlayers: players.size, totalRooms: rooms.size } });
