@@ -11,15 +11,11 @@ const io = new Server(server);
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // ---- In-memory state ----
-// rooms: Map<roomId, RoomState>
-const rooms = new Map();
-
-// socket.id -> { name, roomId }
-const players = new Map();
+const rooms = new Map();     // roomId -> RoomState
+const players = new Map();   // socket.id -> { name, roomId, skin }
 
 const MAPS_DIR = path.join(__dirname, '..', 'public', 'maps');
 
-// mapId -> { id, name, width, height, platforms, spawns }
 function loadMaps() {
   const result = new Map();
   if (!fs.existsSync(MAPS_DIR)) return result;
@@ -74,9 +70,7 @@ function publicRoomList() {
 }
 
 function broadcastGlobalStats() {
-  const totalPlayers = players.size;
-  const totalRooms = rooms.size;
-  io.emit('globalStats', { totalPlayers, totalRooms });
+  io.emit('globalStats', { totalPlayers: players.size, totalRooms: rooms.size });
 }
 
 function broadcastRoomList() {
@@ -124,7 +118,6 @@ function removePlayerFromRoom(socket) {
   if (room.players.size === 0) {
     rooms.delete(room.id);
   } else {
-    // reassign host if the host left
     const stillHasHost = Array.from(room.players.values()).some(p => p.isHost);
     if (!stillHasHost) {
       const next = room.players.values().next().value;
@@ -137,7 +130,7 @@ function removePlayerFromRoom(socket) {
 }
 
 io.on('connection', (socket) => {
-  players.set(socket.id, { name: null, roomId: null });
+  players.set(socket.id, { name: null, roomId: null, skin: 'blue' });
 
   socket.on('setName', (name, cb) => {
     name = (name || '').toString().trim().slice(0, 20);
@@ -319,8 +312,37 @@ io.on('connection', (socket) => {
     io.to(room.id).emit('playersUpdate', room.game.players);
   });
 
+  // ---- Silah sistemi: ates etme ve isabet aktarimi ----
+  socket.on('playerShoot', (data) => {
+    const info = players.get(socket.id);
+    if (!info || !info.roomId) return;
+    const room = rooms.get(info.roomId);
+    if (!room || !room.game || !room.game.active) return;
+    // Sadece odadaki diger oyunculara ilet (atan kisi zaten kendi tarafinda olusturdu)
+    socket.to(room.id).emit('playerShot', {
+      shooterId: socket.id,
+      x: data.x,
+      y: data.y,
+      dirX: data.dirX,
+      weapon: data.weapon || 'pistol',
+    });
+  });
+
+  socket.on('playerHit', ({ targetId, dirX, force }) => {
+    const info = players.get(socket.id);
+    if (!info || !info.roomId) return;
+    const room = rooms.get(info.roomId);
+    if (!room || !room.game || !room.game.active) return;
+    if (!room.game.players[targetId]) return; // hedef odada mi kontrolu
+    io.to(targetId).emit('youWereHit', {
+      byId: socket.id,
+      dirX: Math.sign(dirX) || 1,
+      force: Math.min(Math.max(parseFloat(force) || 300, 0), 1500),
+    });
+  });
+
   socket.on('getMaps', (cb) => {
-    MAPS = loadMaps(); // her istekte diskten tekrar oku (yeni eklenen haritaları yakalamak için)
+    MAPS = loadMaps();
     const list = Array.from(MAPS.values()).map(m => ({ id: m.id, name: m.name }));
     cb && cb(list);
   });
