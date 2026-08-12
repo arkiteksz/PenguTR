@@ -30,6 +30,7 @@ const nameInput = document.getElementById('nameInput');
 nameInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') submitName();
 });
+
 let selectedSkin = 'blue';
 document.querySelectorAll('.skin-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -84,7 +85,7 @@ function renderRoomList(rooms) {
     body.appendChild(tr);
   });
   body.querySelectorAll('button[data-room]').forEach(btn => {
-    btn.addEventListener('click', () => attemptJoin(btn.dataset.room));
+    btn.addEventListener('click', () => attemptJoinSmart(btn.dataset.room));
   });
 }
 
@@ -108,28 +109,6 @@ document.getElementById('btnRefresh').addEventListener('click', () => {
   });
 });
 
-function attemptJoin(roomId, password) {
-  socket.emit('joinRoom', { roomId, password }, (res) => {
-    if (res.ok) {
-      currentRoomId = res.roomId;
-      enterLobby();
-    } else if (res.error === 'Şifre yanlış' || res.error === 'Oda bulunamadı') {
-      if (res.error === 'Şifre yanlış') {
-        showToast('Şifre yanlış');
-      } else {
-        pendingJoinRoomId = roomId;
-        document.getElementById('modal-password').classList.remove('hidden');
-      }
-    } else {
-      showToast(res.error);
-    }
-  });
-}
-
-// try join first without password; if it needs one, prompt
-document.getElementById('roomListBody').addEventListener('click', () => {});
-
-// override attemptJoin to detect password-required rooms properly:
 function attemptJoinSmart(roomId) {
   socket.emit('joinRoom', { roomId, password: '' }, (res) => {
     if (res.ok) {
@@ -146,14 +125,6 @@ function attemptJoinSmart(roomId) {
     }
   });
 }
-// re-bind room list buttons to smart join
-const origRenderRoomList = renderRoomList;
-renderRoomList = function (rooms) {
-  origRenderRoomList(rooms);
-  document.getElementById('roomListBody').querySelectorAll('button[data-room]').forEach(btn => {
-    btn.onclick = () => attemptJoinSmart(btn.dataset.room);
-  });
-};
 
 document.getElementById('btnCancelPassword').addEventListener('click', () => {
   document.getElementById('modal-password').classList.add('hidden');
@@ -213,7 +184,6 @@ function enterLobby() {
       sel.innerHTML = maps.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
     }
     mapsLoaded = true;
-    // sunucudan gelen mevcut oda ayarını uygula (varsa)
     if (window._lastRoomState) applyMapSelection(window._lastRoomState.settings.map);
   });
 }
@@ -292,27 +262,28 @@ document.getElementById('btnLeaveRoom').addEventListener('click', () => {
 
 socket.on('errorMsg', (msg) => showToast(msg));
 
-// ---- Basit oyun prototipi: platform fiziği (yerçekimi, zıplama, çarpışma) ----
+// ---- Basit oyun prototipi: platform fiziği + sprite animasyon + silah ----
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const WORLD_W = 1280, WORLD_H = 720, SQUARE = 40;
-const MOVE_SPEED = 300;      // px/sn yatay hız
-const GRAVITY = 1300;        // px/sn^2
-const JUMP_VELOCITY = -620;  // zıplama ilk hızı
-const DROP_THROUGH_MS = 350; // S ile platformdan inme süresi
+const MOVE_SPEED = 300;
+const GRAVITY = 1300;
+const JUMP_VELOCITY = -620;
+const DROP_THROUGH_MS = 350;
 
-let gamePlayers = {}; // socket.id -> {x,y,name,team}
+let gamePlayers = {};
 let myPos = { x: 0, y: 0 };
 let myVel = { x: 0, y: 0 };
 let onGround = false;
 let dropThroughUntil = 0;
 let jumpRequested = false;
 let dropRequested = false;
-let keys = { w: false, a: false, s: false, d: false };
+let fireRequested = false;
+let keys = { w: false, a: false, s: false, d: false, u: false };
 let gameLoopRunning = false;
 let lastFrameTime = 0;
 let lastSendTime = 0;
-let currentMap = null; // {width,height,platforms,image}
+let currentMap = null;
 let mapBgImage = null;
 
 // ---- Karakter sprite / renklendirme ----
@@ -366,13 +337,26 @@ function getTintedFrame(skin, frameIdx) {
   return tintedCache[(skin || 'blue') + '_' + frameIdx] || null;
 }
 
-let playerVisual = {}; // id -> {facing, frame, timer, moving, prevX}
+let playerVisual = {};
+let remoteMoveInfo = {};
+
+// ---- Silah (pistol - test) ----
+const PISTOL = {
+  fireRateMs: 333,     // saniyede 3 atis
+  bulletSpeed: 700,    // px/sn
+  lifespanMs: 1000,
+  knockback: 340,
+};
+let bullets = []; // {id, ownerId, x, y, vx, vy, spawnTime}
+let lastFireTime = -9999;
+let bulletIdCounter = 0;
 
 window.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if (!(k in keys)) return;
   if (k === 'w' && !keys.w) jumpRequested = true;
   if (k === 's' && !keys.s) dropRequested = true;
+  if (k === 'u' && !keys.u) fireRequested = true;
   keys[k] = true;
 });
 window.addEventListener('keyup', (e) => {
@@ -384,6 +368,7 @@ socket.on('gameStarting', (data) => {
   gamePlayers = data.players || {};
   currentMap = data.map || null;
   mapBgImage = null;
+  bullets = [];
   if (currentMap && currentMap.image) {
     const img = new Image();
     img.onload = () => { mapBgImage = img; };
@@ -408,8 +393,42 @@ socket.on('gameStarting', (data) => {
 });
 
 socket.on('playersUpdate', (players) => {
+  const now = performance.now();
+  Object.entries(players).forEach(([id, p]) => {
+    if (id === socket.id) return;
+    const prev = gamePlayers[id];
+    if (prev) {
+      const dx = p.x - prev.x;
+      if (Math.abs(dx) > 0.5) {
+        remoteMoveInfo[id] = { facing: dx > 0 ? 1 : -1, movingUntil: now + 250 };
+      }
+    }
+  });
   gamePlayers = players;
 });
+
+// Baskasi ates etti
+socket.on('playerShot', (data) => {
+  spawnBullet(data.shooterId, data.x, data.y, data.dirX);
+});
+
+// Ben vuruldum
+socket.on('youWereHit', ({ dirX, force }) => {
+  myVel.x = dirX * force;
+  myVel.y = -260;
+  onGround = false;
+});
+
+function spawnBullet(ownerId, x, y, dirX) {
+  bullets.push({
+    id: 'b' + (bulletIdCounter++),
+    ownerId,
+    x, y,
+    vx: dirX * PISTOL.bulletSpeed,
+    vy: 0,
+    spawnTime: performance.now(),
+  });
+}
 
 function getPlatforms() {
   return (currentMap && currentMap.platforms) ? currentMap.platforms : [];
@@ -426,14 +445,14 @@ function gameLoop(now) {
   myVel.x = dx * MOVE_SPEED;
   myPos.x = clampNum(myPos.x + myVel.x * dt, 0, WORLD_W - SQUARE);
 
-  // ---- Platformdan aşağı inme (S) ----
+  // ---- Platformdan asagi inme (S) ----
   if (dropRequested) {
     dropRequested = false;
     if (onGround) dropThroughUntil = now + DROP_THROUGH_MS;
   }
   const droppingThrough = now < dropThroughUntil;
 
-  // ---- Zıplama ----
+  // ---- Ziplama ----
   if (jumpRequested) {
     jumpRequested = false;
     if (onGround) {
@@ -442,7 +461,21 @@ function gameLoop(now) {
     }
   }
 
-  // ---- Yerçekimi ----
+  // ---- Atesv (U) ----
+  if (fireRequested) {
+    fireRequested = false;
+    if (now - lastFireTime > PISTOL.fireRateMs) {
+      lastFireTime = now;
+      const vs = playerVisual[socket.id];
+      const facing = vs ? vs.facing : 1;
+      const spawnX = myPos.x + SQUARE / 2 + facing * (SQUARE / 2 + 4);
+      const spawnY = myPos.y + SQUARE * 0.4;
+      spawnBullet(socket.id, spawnX, spawnY, facing);
+      socket.emit('playerShoot', { x: spawnX, y: spawnY, dirX: facing, weapon: 'pistol' });
+    }
+  }
+
+  // ---- Yercekimi ----
   myVel.y += GRAVITY * dt;
   const prevBottom = myPos.y + SQUARE;
   myPos.y += myVel.y * dt;
@@ -452,7 +485,7 @@ function gameLoop(now) {
   if (myVel.y >= 0) {
     getPlatforms().forEach(pl => {
       const isThin = pl.h <= 20;
-      if (droppingThrough && isThin) return; // ince platformlardan geçiliyor
+      if (droppingThrough && isThin) return;
       const withinX = myPos.x + SQUARE > pl.x && myPos.x < pl.x + pl.w;
       if (withinX && prevBottom <= pl.y + 1 && newBottom >= pl.y) {
         myPos.y = pl.y - SQUARE;
@@ -463,7 +496,6 @@ function gameLoop(now) {
     });
   }
 
-  // Dünyanın altı geçici zemin (elenme sistemi henüz eklenmedi)
   if (myPos.y + SQUARE >= WORLD_H) {
     myPos.y = WORLD_H - SQUARE;
     myVel.y = 0;
@@ -471,27 +503,54 @@ function gameLoop(now) {
   }
   if (myPos.y < 0) { myPos.y = 0; myVel.y = 0; }
 
-  if (now - lastSendTime > 40) { // ~25hz
+  if (now - lastSendTime > 40) {
     lastSendTime = now;
     socket.emit('playerMove', { x: myPos.x, y: myPos.y });
   }
 
-  // local prediction: reflect my own latest position immediately
   if (gamePlayers[socket.id]) {
     gamePlayers[socket.id].x = myPos.x;
     gamePlayers[socket.id].y = myPos.y;
   }
 
-  updateVisualStates(dt);
+  updateVisualStates(dt, now);
+  updateBullets(dt, now);
   renderGame();
   requestAnimationFrame(gameLoop);
 }
 
+function updateBullets(dt, now) {
+  const solidPlatforms = getPlatforms().filter(pl => pl.h > 20);
+  bullets = bullets.filter(b => {
+    if (now - b.spawnTime > PISTOL.lifespanMs) return false;
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    if (b.x < -20 || b.x > WORLD_W + 20 || b.y < -20 || b.y > WORLD_H + 20) return false;
+
+    // Kati platforma carpma
+    for (const pl of solidPlatforms) {
+      if (b.x > pl.x && b.x < pl.x + pl.w && b.y > pl.y && b.y < pl.y + pl.h) return false;
+    }
+
+    // Isabet kontrolu - sadece kendi merminse
+    if (b.ownerId === socket.id) {
+      for (const [id, p] of Object.entries(gamePlayers)) {
+        if (id === socket.id) continue;
+        if (b.x > p.x && b.x < p.x + SQUARE && b.y > p.y && b.y < p.y + SQUARE) {
+          socket.emit('playerHit', { targetId: id, dirX: b.vx >= 0 ? 1 : -1, force: PISTOL.knockback });
+          return false;
+        }
+      }
+    }
+    return true;
+  });
+}
+
 function clampNum(v, min, max) { return Math.min(Math.max(v, min), max); }
 
-function updateVisualStates(dt) {
+function updateVisualStates(dt, now) {
   Object.entries(gamePlayers).forEach(([id, p]) => {
-    if (!playerVisual[id]) playerVisual[id] = { facing: 1, frame: 0, timer: 0, moving: false, prevX: p.x };
+    if (!playerVisual[id]) playerVisual[id] = { facing: 1, frame: 0, timer: 0, moving: false };
     const vs = playerVisual[id];
 
     if (id === socket.id) {
@@ -499,11 +558,11 @@ function updateVisualStates(dt) {
       else if (keys.d && !keys.a) vs.facing = 1;
       vs.moving = keys.a || keys.d;
     } else {
-      const dx = p.x - vs.prevX;
-      if (Math.abs(dx) > 0.5) vs.facing = dx > 0 ? 1 : -1;
-      vs.moving = Math.abs(dx) > 0.5;
+      const info = remoteMoveInfo[id];
+      const moving = !!(info && now < info.movingUntil);
+      if (moving) vs.facing = info.facing;
+      vs.moving = moving;
     }
-    vs.prevX = p.x;
 
     if (vs.moving) {
       vs.timer += dt;
@@ -522,7 +581,6 @@ function renderGame() {
   if (mapBgImage) {
     ctx.drawImage(mapBgImage, 0, 0, WORLD_W, WORLD_H);
   }
-  // Platformlar görünmez - sadece arka plan görselindeki çizim kullanılıyor
 
   const DRAW_W = 60, DRAW_H = 75;
 
@@ -547,5 +605,16 @@ function renderGame() {
     ctx.font = '13px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(p.name, cx, bottomY - DRAW_H - 6);
+  });
+
+  // ---- Mermiler ----
+  ctx.fillStyle = '#fff566';
+  ctx.strokeStyle = '#c9a800';
+  ctx.lineWidth = 1;
+  bullets.forEach(b => {
+    ctx.beginPath();
+    ctx.ellipse(b.x, b.y, 7, 3.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
   });
 }
