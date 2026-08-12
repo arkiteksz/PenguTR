@@ -276,6 +276,7 @@ let myPos = { x: 0, y: 0 };
 let myVel = { x: 0, y: 0 };
 let onGround = false;
 let dropThroughUntil = 0;
+let stunUntil = 0;
 let jumpRequested = false;
 let dropRequested = false;
 let fireRequested = false;
@@ -409,7 +410,7 @@ socket.on('playersUpdate', (players) => {
 
 // Baskasi ates etti
 socket.on('playerShot', (data) => {
-  spawnBullet(data.shooterId, data.x, data.y, data.dirX);
+  spawnBullet(data.id, data.shooterId, data.x, data.y, data.dirX);
 });
 
 // Ben vuruldum
@@ -417,17 +418,45 @@ socket.on('youWereHit', ({ dirX, force }) => {
   myVel.x = dirX * force;
   myVel.y = -260;
   onGround = false;
+  stunUntil = performance.now() + 220;
 });
 
-function spawnBullet(ownerId, x, y, dirX) {
+socket.on('bulletRemoved', ({ bulletId }) => {
+  bullets = bullets.filter(b => b.id !== bulletId);
+});
+
+function spawnBullet(id, ownerId, x, y, dirX) {
   bullets.push({
-    id: 'b' + (bulletIdCounter++),
+    id,
     ownerId,
     x, y,
     vx: dirX * PISTOL.bulletSpeed,
     vy: 0,
     spawnTime: performance.now(),
   });
+}
+
+function respawnPlayer() {
+  const myTeam = (gamePlayers[socket.id] && gamePlayers[socket.id].team) || 'red';
+  const spawnList = (currentMap && currentMap.spawns && currentMap.spawns[myTeam] && currentMap.spawns[myTeam].length)
+    ? currentMap.spawns[myTeam] : [{ x: WORLD_W / 2, y: WORLD_H / 2 }];
+  const sp = spawnList[Math.floor(Math.random() * spawnList.length)];
+  myPos.x = sp.x; myPos.y = sp.y;
+  myVel.x = 0; myVel.y = 0;
+  onGround = false;
+  stunUntil = 0;
+  dropThroughUntil = 0;
+  socket.emit('playerMove', { x: myPos.x, y: myPos.y });
+}
+
+function checkKillZones() {
+  const zones = (currentMap && currentMap.killZones) ? currentMap.killZones : [];
+  for (const z of zones) {
+    if (myPos.x + SQUARE > z.x && myPos.x < z.x + z.w && myPos.y + SQUARE > z.y && myPos.y < z.y + z.h) {
+      respawnPlayer();
+      return;
+    }
+  }
 }
 
 function getPlatforms() {
@@ -439,10 +468,14 @@ function gameLoop(now) {
   lastFrameTime = now;
 
   // ---- Yatay hareket ----
-  let dx = 0;
-  if (keys.a) dx -= 1;
-  if (keys.d) dx += 1;
-  myVel.x = dx * MOVE_SPEED;
+  if (now < stunUntil) {
+    myVel.x *= 0.94; // sersemlemis durumda surtunerek yavasla, tus girisini yok say
+  } else {
+    let dx = 0;
+    if (keys.a) dx -= 1;
+    if (keys.d) dx += 1;
+    myVel.x = dx * MOVE_SPEED;
+  }
   myPos.x = clampNum(myPos.x + myVel.x * dt, 0, WORLD_W - SQUARE);
 
   // ---- Platformdan asagi inme (S) ----
@@ -470,8 +503,9 @@ function gameLoop(now) {
       const facing = vs ? vs.facing : 1;
       const spawnX = myPos.x + SQUARE / 2 + facing * (SQUARE / 2 + 4);
       const spawnY = myPos.y + SQUARE * 0.4;
-      spawnBullet(socket.id, spawnX, spawnY, facing);
-      socket.emit('playerShoot', { x: spawnX, y: spawnY, dirX: facing, weapon: 'pistol' });
+      const bulletId = socket.id + '_' + (bulletIdCounter++);
+      spawnBullet(bulletId, socket.id, spawnX, spawnY, facing);
+      socket.emit('playerShoot', { id: bulletId, x: spawnX, y: spawnY, dirX: facing, weapon: 'pistol' });
     }
   }
 
@@ -502,6 +536,8 @@ function gameLoop(now) {
     onGround = true;
   }
   if (myPos.y < 0) { myPos.y = 0; myVel.y = 0; }
+
+  checkKillZones();
 
   if (now - lastSendTime > 40) {
     lastSendTime = now;
@@ -537,7 +573,7 @@ function updateBullets(dt, now) {
       for (const [id, p] of Object.entries(gamePlayers)) {
         if (id === socket.id) continue;
         if (b.x > p.x && b.x < p.x + SQUARE && b.y > p.y && b.y < p.y + SQUARE) {
-          socket.emit('playerHit', { targetId: id, dirX: b.vx >= 0 ? 1 : -1, force: PISTOL.knockback });
+          socket.emit('playerHit', { targetId: id, dirX: b.vx >= 0 ? 1 : -1, force: PISTOL.knockback, bulletId: b.id });
           return false;
         }
       }
