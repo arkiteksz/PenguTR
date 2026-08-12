@@ -5,17 +5,17 @@ const W = 1280, H = 720;
 let bgImage = null;
 let currentTool = 'select';
 let platforms = []; // {id,x,y,w,h}
+let deathboxes = []; // {id,x,y,w,h}
 let spawns = { red: [], blue: [] }; // {id,x,y}
 let nextId = 1;
 
-let selected = null; // {type:'platform'|'spawn', team?, id}
+let selected = null; // {type:'platform'|'deathbox'|'spawn', team?, id}
 let dragMode = null; // 'move' | 'resize' | 'draw'
-let dragStart = null; // {x,y}
+let dragStart = null;
 let dragOrig = null;
 
 function uid() { return nextId++; }
 
-// ---- Coordinate helpers ----
 function getCanvasPos(e) {
   const rect = canvas.getBoundingClientRect();
   const scaleX = W / rect.width;
@@ -28,7 +28,6 @@ function getCanvasPos(e) {
   };
 }
 
-// ---- Toolbar ----
 document.querySelectorAll('.tool-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
@@ -60,6 +59,8 @@ function deleteSelected() {
   if (!selected) return;
   if (selected.type === 'platform') {
     platforms = platforms.filter(p => p.id !== selected.id);
+  } else if (selected.type === 'deathbox') {
+    deathboxes = deathboxes.filter(p => p.id !== selected.id);
   } else if (selected.type === 'spawn') {
     spawns[selected.team] = spawns[selected.team].filter(s => s.id !== selected.id);
   }
@@ -68,10 +69,9 @@ function deleteSelected() {
   redraw();
 }
 
-// ---- Mouse interaction ----
-function hitTestPlatform(pos) {
-  for (let i = platforms.length - 1; i >= 0; i--) {
-    const p = platforms[i];
+function hitTestList(list, pos) {
+  for (let i = list.length - 1; i >= 0; i--) {
+    const p = list[i];
     if (pos.x >= p.x && pos.x <= p.x + p.w && pos.y >= p.y && pos.y <= p.y + p.h) return p;
   }
   return null;
@@ -87,7 +87,7 @@ function hitTestSpawn(pos, team) {
 canvas.addEventListener('mousedown', (e) => {
   const pos = getCanvasPos(e);
 
-  if (currentTool === 'platform') {
+  if (currentTool === 'platform' || currentTool === 'deathbox') {
     dragMode = 'draw';
     dragStart = pos;
     dragOrig = { x: pos.x, y: pos.y, w: 0, h: 0 };
@@ -102,15 +102,18 @@ canvas.addEventListener('mousedown', (e) => {
     redraw();
     return;
   }
-  // select tool
-  const p = hitTestPlatform(pos);
-  if (p && hitTestResizeHandle(pos, p)) {
-    selected = { type: 'platform', id: p.id };
-    dragMode = 'resize';
-    dragOrig = { ...p };
-    dragStart = pos;
-    renderSidebar();
-    return;
+
+  // select tool - once platform, once deathbox, once spawn kontrolu
+  for (const [list, type] of [[platforms, 'platform'], [deathboxes, 'deathbox']]) {
+    const p = hitTestList(list, pos);
+    if (p && hitTestResizeHandle(pos, p)) {
+      selected = { type, id: p.id };
+      dragMode = 'resize';
+      dragOrig = { ...p };
+      dragStart = pos;
+      renderSidebar();
+      return;
+    }
   }
   const rSpawn = hitTestSpawn(pos, 'red');
   const bSpawn = hitTestSpawn(pos, 'blue');
@@ -125,14 +128,17 @@ canvas.addEventListener('mousedown', (e) => {
     redraw();
     return;
   }
-  if (p) {
-    selected = { type: 'platform', id: p.id };
-    dragMode = 'move';
-    dragOrig = { ...p };
-    dragStart = pos;
-    renderSidebar();
-    redraw();
-    return;
+  for (const [list, type] of [[platforms, 'platform'], [deathboxes, 'deathbox']]) {
+    const p = hitTestList(list, pos);
+    if (p) {
+      selected = { type, id: p.id };
+      dragMode = 'move';
+      dragOrig = { ...p };
+      dragStart = pos;
+      renderSidebar();
+      redraw();
+      return;
+    }
   }
   selected = null;
   renderSidebar();
@@ -151,8 +157,9 @@ canvas.addEventListener('mousemove', (e) => {
     redraw(true);
     return;
   }
-  if (selected && selected.type === 'platform') {
-    const p = platforms.find(pl => pl.id === selected.id);
+  if (selected && (selected.type === 'platform' || selected.type === 'deathbox')) {
+    const list = selected.type === 'platform' ? platforms : deathboxes;
+    const p = list.find(pl => pl.id === selected.id);
     if (!p) return;
     if (dragMode === 'move') {
       p.x = clamp(dragOrig.x + dx, 0, W - p.w);
@@ -179,9 +186,9 @@ canvas.addEventListener('mouseup', () => {
     if (w < 0) { x += w; w = -w; }
     if (h < 0) { y += h; h = -h; }
     if (w > 8 && h > 8) {
-      const p = { id: uid(), x: clamp(x,0,W), y: clamp(y,0,H), w: Math.min(w, W), h: Math.min(h, H) };
-      platforms.push(p);
-      selected = { type: 'platform', id: p.id };
+      const p = { id: uid(), x: clamp(x, 0, W), y: clamp(y, 0, H), w: Math.min(w, W), h: Math.min(h, H) };
+      if (currentTool === 'platform') { platforms.push(p); selected = { type: 'platform', id: p.id }; }
+      else if (currentTool === 'deathbox') { deathboxes.push(p); selected = { type: 'deathbox', id: p.id }; }
       renderSidebar();
     }
   }
@@ -196,7 +203,6 @@ canvas.addEventListener('mouseleave', () => {
 
 function clamp(v, min, max) { return Math.min(Math.max(v, min), max); }
 
-// ---- Rendering ----
 function redraw(drawingPreview) {
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = '#223522';
@@ -216,9 +222,24 @@ function redraw(drawingPreview) {
     }
   });
 
+  deathboxes.forEach(p => {
+    const isSel = selected && selected.type === 'deathbox' && selected.id === p.id;
+    ctx.fillStyle = isSel ? 'rgba(240,192,64,0.35)' : 'rgba(220,50,50,0.3)';
+    ctx.strokeStyle = isSel ? '#f0c040' : '#e03030';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 5]);
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    ctx.strokeRect(p.x, p.y, p.w, p.h);
+    ctx.setLineDash([]);
+    if (isSel) {
+      ctx.fillStyle = '#f0c040';
+      ctx.fillRect(p.x + p.w - 6, p.y + p.h - 6, 12, 12);
+    }
+  });
+
   if (drawingPreview && dragMode === 'draw') {
     let { x, y, w, h } = dragOrig;
-    ctx.strokeStyle = '#f0c040';
+    ctx.strokeStyle = currentTool === 'deathbox' ? '#e03030' : '#f0c040';
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 4]);
     ctx.strokeRect(x, y, w, h);
@@ -242,17 +263,24 @@ function drawSpawns(team, color) {
   });
 }
 
-// ---- Sidebar ----
 function renderSidebar() {
   document.getElementById('platformCount').textContent = platforms.length;
+  document.getElementById('deathboxCount').textContent = deathboxes.length;
   document.getElementById('redCount').textContent = spawns.red.length;
   document.getElementById('blueCount').textContent = spawns.blue.length;
 
-  const pList = document.getElementById('platformList');
-  pList.innerHTML = '';
-  platforms.forEach(p => {
+  renderRectList('platformList', platforms, 'platform');
+  renderRectList('deathboxList', deathboxes, 'deathbox');
+  renderSpawnList('red');
+  renderSpawnList('blue');
+}
+
+function renderRectList(elId, list, type) {
+  const container = document.getElementById(elId);
+  container.innerHTML = '';
+  list.forEach(p => {
     const row = document.createElement('div');
-    row.className = 'entity-row' + (selected && selected.type === 'platform' && selected.id === p.id ? ' selected' : '');
+    row.className = 'entity-row' + (selected && selected.type === type && selected.id === p.id ? ' selected' : '');
     row.innerHTML = `
       x:<input type="number" value="${Math.round(p.x)}" data-f="x">
       y:<input type="number" value="${Math.round(p.y)}" data-f="y">
@@ -267,20 +295,18 @@ function renderSidebar() {
       });
     });
     row.querySelector('.del-btn').addEventListener('click', () => {
-      platforms = platforms.filter(pl => pl.id !== p.id);
+      const idx = list.findIndex(pl => pl.id === p.id);
+      if (idx !== -1) list.splice(idx, 1);
       if (selected && selected.id === p.id) selected = null;
       renderSidebar(); redraw();
     });
     row.addEventListener('click', (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
-      selected = { type: 'platform', id: p.id };
+      selected = { type, id: p.id };
       renderSidebar(); redraw();
     });
-    pList.appendChild(row);
+    container.appendChild(row);
   });
-
-  renderSpawnList('red');
-  renderSpawnList('blue');
 }
 
 function renderSpawnList(team) {
@@ -314,13 +340,13 @@ function renderSpawnList(team) {
   });
 }
 
-// ---- Export / Import ----
 document.getElementById('btnExport').addEventListener('click', () => {
   const data = {
     name: document.getElementById('mapName').value.trim() || 'Harita',
     width: W,
     height: H,
     platforms: platforms.map(({ x, y, w, h }) => ({ x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) })),
+    killZones: deathboxes.map(({ x, y, w, h }) => ({ x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) })),
     spawns: {
       red: spawns.red.map(({ x, y }) => ({ x: Math.round(x), y: Math.round(y) })),
       blue: spawns.blue.map(({ x, y }) => ({ x: Math.round(x), y: Math.round(y) })),
@@ -345,6 +371,7 @@ document.getElementById('jsonUpload').addEventListener('change', (e) => {
       const data = JSON.parse(reader.result);
       document.getElementById('mapName').value = data.name || 'Harita';
       platforms = (data.platforms || []).map(p => ({ id: uid(), ...p }));
+      deathboxes = (data.killZones || []).map(p => ({ id: uid(), ...p }));
       spawns.red = (data.spawns?.red || []).map(s => ({ id: uid(), ...s }));
       spawns.blue = (data.spawns?.blue || []).map(s => ({ id: uid(), ...s }));
       selected = null;
