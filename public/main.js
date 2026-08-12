@@ -266,6 +266,7 @@ socket.on('errorMsg', (msg) => showToast(msg));
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const WORLD_W = 1280, WORLD_H = 720, SQUARE = 40;
+const DRAW_W = 60, DRAW_H = 75; // karakterin gorsel boyutu (cizim + isabet kutusu icin ortak)
 const MOVE_SPEED = 300;
 const GRAVITY = 1300;
 const JUMP_VELOCITY = -620;
@@ -363,6 +364,15 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
   const k = e.key.toLowerCase();
   if (k in keys) keys[k] = false;
+});
+
+// Sekme arka plana geçince/pencere odak kaybedince basili tuslar "takili" kalabiliyor - guvenlik icin sifirla
+function releaseAllKeys() {
+  keys.w = false; keys.a = false; keys.s = false; keys.d = false; keys.u = false;
+}
+window.addEventListener('blur', releaseAllKeys);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) releaseAllKeys();
 });
 
 socket.on('gameStarting', (data) => {
@@ -568,11 +578,15 @@ function updateBullets(dt, now) {
       if (b.x > pl.x && b.x < pl.x + pl.w && b.y > pl.y && b.y < pl.y + pl.h) return false;
     }
 
-    // Isabet kontrolu - sadece kendi merminse
+    // Isabet kontrolu - sadece kendi merminse (gorsel sprite boyutuyla ayni kutu kullanilir)
     if (b.ownerId === socket.id) {
       for (const [id, p] of Object.entries(gamePlayers)) {
         if (id === socket.id) continue;
-        if (b.x > p.x && b.x < p.x + SQUARE && b.y > p.y && b.y < p.y + SQUARE) {
+        const hitLeft = p.x + SQUARE / 2 - DRAW_W / 2;
+        const hitRight = p.x + SQUARE / 2 + DRAW_W / 2;
+        const hitBottom = p.y + SQUARE;
+        const hitTop = hitBottom - DRAW_H;
+        if (b.x > hitLeft && b.x < hitRight && b.y > hitTop && b.y < hitBottom) {
           socket.emit('playerHit', { targetId: id, dirX: b.vx >= 0 ? 1 : -1, force: PISTOL.knockback, bulletId: b.id });
           return false;
         }
@@ -617,8 +631,6 @@ function renderGame() {
   if (mapBgImage) {
     ctx.drawImage(mapBgImage, 0, 0, WORLD_W, WORLD_H);
   }
-
-  const DRAW_W = 60, DRAW_H = 75;
 
   Object.entries(gamePlayers).forEach(([id, p]) => {
     const vs = playerVisual[id] || { facing: 1, frame: 0 };
