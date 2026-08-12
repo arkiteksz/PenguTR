@@ -31,6 +31,7 @@ function loadMaps() {
         width: data.width || 1280,
         height: data.height || 720,
         platforms: data.platforms || [],
+        killZones: data.killZones || [],
         spawns: data.spawns || { red: [], blue: [] },
         image: `/maps/${id}.png`,
       });
@@ -318,9 +319,9 @@ io.on('connection', (socket) => {
     if (!info || !info.roomId) return;
     const room = rooms.get(info.roomId);
     if (!room || !room.game || !room.game.active) return;
-    // Sadece odadaki diger oyunculara ilet (atan kisi zaten kendi tarafinda olusturdu)
     socket.to(room.id).emit('playerShot', {
       shooterId: socket.id,
+      id: data.id,
       x: data.x,
       y: data.y,
       dirX: data.dirX,
@@ -328,17 +329,19 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('playerHit', ({ targetId, dirX, force }) => {
+  socket.on('playerHit', ({ targetId, dirX, force, bulletId }) => {
     const info = players.get(socket.id);
     if (!info || !info.roomId) return;
     const room = rooms.get(info.roomId);
     if (!room || !room.game || !room.game.active) return;
-    if (!room.game.players[targetId]) return; // hedef odada mi kontrolu
+    if (!room.game.players[targetId]) return;
     io.to(targetId).emit('youWereHit', {
       byId: socket.id,
       dirX: Math.sign(dirX) || 1,
       force: Math.min(Math.max(parseFloat(force) || 300, 0), 1500),
     });
+    // Herkese bu merminin bittigini bildir (istemciler arasi senkron icin)
+    if (bulletId) io.to(room.id).emit('bulletRemoved', { bulletId });
   });
 
   socket.on('getMaps', (cb) => {
