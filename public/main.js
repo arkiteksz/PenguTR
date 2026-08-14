@@ -395,6 +395,9 @@ socket.on('gameStarting', (data) => {
   myVel.x = 0; myVel.y = 0;
   onGround = false;
   dropThroughUntil = 0;
+  stunUntil = 0;
+  amEliminated = false;
+  matchEndedInfo = null;
   showScreen('screen-game');
   if (!gameLoopRunning) {
     gameLoopRunning = true;
@@ -434,6 +437,23 @@ socket.on('youWereHit', ({ dirX, force }) => {
 socket.on('bulletRemoved', ({ bulletId }) => {
   bullets = bullets.filter(b => b.id !== bulletId);
 });
+
+// Stok kaybedip yeniden dogdum
+socket.on('youRespawned', ({ x, y }) => {
+  myPos.x = x; myPos.y = y;
+  myVel.x = 0; myVel.y = 0;
+  onGround = false;
+  stunUntil = 0;
+  dropThroughUntil = 0;
+});
+
+let amEliminated = false;
+let matchEndedInfo = null;
+
+socket.on('matchEnded', (data) => {
+  matchEndedInfo = data;
+});
+
 
 function spawnBullet(id, ownerId, x, y, dirX) {
   bullets.push({
@@ -477,86 +497,91 @@ function gameLoop(now) {
   const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
   lastFrameTime = now;
 
-  // ---- Yatay hareket ----
-  if (now < stunUntil) {
-    myVel.x *= 0.94; // sersemlemis durumda surtunerek yavasla, tus girisini yok say
-  } else {
-    let dx = 0;
-    if (keys.a) dx -= 1;
-    if (keys.d) dx += 1;
-    myVel.x = dx * MOVE_SPEED;
-  }
-  myPos.x = clampNum(myPos.x + myVel.x * dt, 0, WORLD_W - SQUARE);
+  if (gamePlayers[socket.id]) amEliminated = !!gamePlayers[socket.id].eliminated;
+  const frozen = amEliminated || !!matchEndedInfo;
 
-  // ---- Platformdan asagi inme (S) ----
-  if (dropRequested) {
-    dropRequested = false;
-    if (onGround) dropThroughUntil = now + DROP_THROUGH_MS;
-  }
-  const droppingThrough = now < dropThroughUntil;
-
-  // ---- Ziplama ----
-  if (jumpRequested) {
-    jumpRequested = false;
-    if (onGround) {
-      myVel.y = JUMP_VELOCITY;
-      onGround = false;
+  if (!frozen) {
+    // ---- Yatay hareket ----
+    if (now < stunUntil) {
+      myVel.x *= 0.94; // sersemlemis durumda surtunerek yavasla, tus girisini yok say
+    } else {
+      let dx = 0;
+      if (keys.a) dx -= 1;
+      if (keys.d) dx += 1;
+      myVel.x = dx * MOVE_SPEED;
     }
-  }
+    myPos.x = clampNum(myPos.x + myVel.x * dt, 0, WORLD_W - SQUARE);
 
-  // ---- Atesv (U) ----
-  if (fireRequested) {
-    fireRequested = false;
-    if (now - lastFireTime > PISTOL.fireRateMs) {
-      lastFireTime = now;
-      const vs = playerVisual[socket.id];
-      const facing = vs ? vs.facing : 1;
-      const spawnX = myPos.x + SQUARE / 2 + facing * (SQUARE / 2 + 4);
-      const spawnY = myPos.y + SQUARE * 0.4;
-      const bulletId = socket.id + '_' + (bulletIdCounter++);
-      spawnBullet(bulletId, socket.id, spawnX, spawnY, facing);
-      socket.emit('playerShoot', { id: bulletId, x: spawnX, y: spawnY, dirX: facing, weapon: 'pistol' });
+    // ---- Platformdan asagi inme (S) ----
+    if (dropRequested) {
+      dropRequested = false;
+      if (onGround) dropThroughUntil = now + DROP_THROUGH_MS;
     }
-  }
+    const droppingThrough = now < dropThroughUntil;
 
-  // ---- Yercekimi ----
-  myVel.y += GRAVITY * dt;
-  const prevBottom = myPos.y + SQUARE;
-  myPos.y += myVel.y * dt;
-  let newBottom = myPos.y + SQUARE;
-  onGround = false;
-
-  if (myVel.y >= 0) {
-    getPlatforms().forEach(pl => {
-      const isThin = pl.h <= 20;
-      if (droppingThrough && isThin) return;
-      const withinX = myPos.x + SQUARE > pl.x && myPos.x < pl.x + pl.w;
-      if (withinX && prevBottom <= pl.y + 1 && newBottom >= pl.y) {
-        myPos.y = pl.y - SQUARE;
-        myVel.y = 0;
-        onGround = true;
-        newBottom = pl.y;
+    // ---- Ziplama ----
+    if (jumpRequested) {
+      jumpRequested = false;
+      if (onGround) {
+        myVel.y = JUMP_VELOCITY;
+        onGround = false;
       }
-    });
-  }
+    }
 
-  if (myPos.y + SQUARE >= WORLD_H) {
-    myPos.y = WORLD_H - SQUARE;
-    myVel.y = 0;
-    onGround = true;
-  }
-  if (myPos.y < 0) { myPos.y = 0; myVel.y = 0; }
+    // ---- Atesv (U) ----
+    if (fireRequested) {
+      fireRequested = false;
+      if (now - lastFireTime > PISTOL.fireRateMs) {
+        lastFireTime = now;
+        const vs = playerVisual[socket.id];
+        const facing = vs ? vs.facing : 1;
+        const spawnX = myPos.x + SQUARE / 2 + facing * (SQUARE / 2 + 4);
+        const spawnY = myPos.y + SQUARE * 0.4;
+        const bulletId = socket.id + '_' + (bulletIdCounter++);
+        spawnBullet(bulletId, socket.id, spawnX, spawnY, facing);
+        socket.emit('playerShoot', { id: bulletId, x: spawnX, y: spawnY, dirX: facing, weapon: 'pistol' });
+      }
+    }
 
-  checkKillZones();
+    // ---- Yercekimi ----
+    myVel.y += GRAVITY * dt;
+    const prevBottom = myPos.y + SQUARE;
+    myPos.y += myVel.y * dt;
+    let newBottom = myPos.y + SQUARE;
+    onGround = false;
 
-  if (now - lastSendTime > 40) {
-    lastSendTime = now;
-    socket.emit('playerMove', { x: myPos.x, y: myPos.y });
-  }
+    if (myVel.y >= 0) {
+      getPlatforms().forEach(pl => {
+        const isThin = pl.h <= 20;
+        if (droppingThrough && isThin) return;
+        const withinX = myPos.x + SQUARE > pl.x && myPos.x < pl.x + pl.w;
+        if (withinX && prevBottom <= pl.y + 1 && newBottom >= pl.y) {
+          myPos.y = pl.y - SQUARE;
+          myVel.y = 0;
+          onGround = true;
+          newBottom = pl.y;
+        }
+      });
+    }
 
-  if (gamePlayers[socket.id]) {
-    gamePlayers[socket.id].x = myPos.x;
-    gamePlayers[socket.id].y = myPos.y;
+    if (myPos.y + SQUARE >= WORLD_H) {
+      myPos.y = WORLD_H - SQUARE;
+      myVel.y = 0;
+      onGround = true;
+    }
+    if (myPos.y < 0) { myPos.y = 0; myVel.y = 0; }
+
+    checkKillZones();
+
+    if (now - lastSendTime > 40) {
+      lastSendTime = now;
+      socket.emit('playerMove', { x: myPos.x, y: myPos.y });
+    }
+
+    if (gamePlayers[socket.id]) {
+      gamePlayers[socket.id].x = myPos.x;
+      gamePlayers[socket.id].y = myPos.y;
+    }
   }
 
   updateVisualStates(dt, now);
@@ -582,12 +607,13 @@ function updateBullets(dt, now) {
     if (b.ownerId === socket.id) {
       for (const [id, p] of Object.entries(gamePlayers)) {
         if (id === socket.id) continue;
+        if (p.eliminated || p.invulnerable) continue;
         const hitLeft = p.x + SQUARE / 2 - DRAW_W / 2;
         const hitRight = p.x + SQUARE / 2 + DRAW_W / 2;
         const hitBottom = p.y + SQUARE;
         const hitTop = hitBottom - DRAW_H;
         if (b.x > hitLeft && b.x < hitRight && b.y > hitTop && b.y < hitBottom) {
-          socket.emit('playerHit', { targetId: id, dirX: b.vx >= 0 ? 1 : -1, force: PISTOL.knockback, bulletId: b.id });
+          socket.emit('playerHit', { targetId: id, dirX: b.vx >= 0 ? 1 : -1, weapon: 'pistol', bulletId: b.id });
           return false;
         }
       }
@@ -633,12 +659,17 @@ function renderGame() {
   }
 
   Object.entries(gamePlayers).forEach(([id, p]) => {
+    if (p.eliminated) return; // elenen oyuncu artik sahnede gorunmez
+
     const vs = playerVisual[id] || { facing: 1, frame: 0 };
     const tinted = getTintedFrame(p.skin, vs.frame);
     const cx = p.x + SQUARE / 2;
     const bottomY = p.y + SQUARE;
 
     ctx.save();
+    if (p.invulnerable && Math.floor(performance.now() / 100) % 2 === 0) {
+      ctx.globalAlpha = 0.4; // dokunulmazken yanip sonme efekti
+    }
     ctx.translate(cx, bottomY);
     if (vs.facing === -1) ctx.scale(-1, 1);
     if (tinted) {
@@ -653,6 +684,13 @@ function renderGame() {
     ctx.font = '13px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(p.name, cx, bottomY - DRAW_H - 6);
+
+    // Gecici can/stok yazisi (asil HUD kartlari sonraki adimda gelecek)
+    if (typeof p.health === 'number') {
+      ctx.fillStyle = p.health > 50 ? '#8fe08a' : (p.health > 20 ? '#f0c040' : '#e05c3f');
+      ctx.font = '11px sans-serif';
+      ctx.fillText(`${Math.round(p.health)} can | ${p.stocks} stok`, cx, bottomY - DRAW_H - 20);
+    }
   });
 
   // ---- Mermiler ----
@@ -665,4 +703,24 @@ function renderGame() {
     ctx.fill();
     ctx.stroke();
   });
+
+  if (amEliminated && !matchEndedInfo) {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, WORLD_W, 40);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Elendin - maç bitene kadar izliyorsun', WORLD_W / 2, 26);
+  }
+
+  if (matchEndedInfo) {
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(0, WORLD_H / 2 - 50, WORLD_W, 100);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 32px sans-serif';
+    ctx.textAlign = 'center';
+    const w = matchEndedInfo.winner;
+    const text = w === 'draw' ? 'Berabere!' : (w === 'red' ? 'Kırmızı Takım Kazandı!' : 'Mavi Takım Kazandı!');
+    ctx.fillText(text, WORLD_W / 2, WORLD_H / 2 + 10);
+  }
 }
