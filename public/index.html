@@ -147,15 +147,22 @@
     <div id="notHostHint" class="hint">Ayarları ve başlatmayı sadece oda sahibi yapabilir.</div>
 
     <div class="controls-legend">
-      <strong>Kontroller:</strong> Hareket: A / D — Zıplama: W — Ateş: U
+      <strong>Kontroller:</strong> Hareket: A / D — Zıplama: W — Ateş: U — Aşağı in: S
     </div>
   </div>
 </div>
 
-<!-- OYUN EKRANI (prototip) -->
+<!-- OYUN EKRANI -->
 <div id="screen-game" class="screen hidden game-screen">
   <div class="game-wrap">
     <canvas id="gameCanvas" width="1280" height="720"></canvas>
+
+    <div class="hud-timer" id="hudTimer">
+      <span class="hud-timer-icon">🕐</span>
+      <span id="hudTimerText">--:--</span>
+    </div>
+
+    <div class="hud-cards" id="hudCards"></div>
   </div>
 </div>
 
