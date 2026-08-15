@@ -222,12 +222,17 @@ function renderLobby(room) {
   document.getElementById('btnStartGame').classList.toggle('hidden', !isHost);
   document.getElementById('notHostHint').classList.toggle('hidden', isHost);
 
+  const isFFA = room.settings.mode === 'ffa';
+  document.getElementById('teamBlueCol').classList.toggle('hidden', isFFA);
+  document.getElementById('redTeamLabel').textContent = isFFA ? 'Oyuncular' : 'Red';
+
   window._lastRoomState = room;
+  document.getElementById('settingMode').value = room.settings.mode || 'teams';
   document.getElementById('settingTime').value = room.settings.timeLimit;
   document.getElementById('settingStock').value = room.settings.stockLimit;
   if (mapsLoaded) applyMapSelection(room.settings.map);
 
-  [document.getElementById('settingTime'), document.getElementById('settingStock'), document.getElementById('settingMap')]
+  [document.getElementById('settingMode'), document.getElementById('settingTime'), document.getElementById('settingStock'), document.getElementById('settingMap')]
     .forEach(el => el.disabled = !isHost);
 }
 
@@ -239,10 +244,11 @@ document.getElementById('hostTools').addEventListener('click', (e) => {
   if (tool) socket.emit('hostTool', tool);
 });
 
-['settingTime', 'settingStock', 'settingMap'].forEach(id => {
+['settingMode', 'settingTime', 'settingStock', 'settingMap'].forEach(id => {
   document.getElementById(id).addEventListener('change', () => {
     if (!isHost) return;
     socket.emit('updateSettings', {
+      mode: document.getElementById('settingMode').value,
       timeLimit: document.getElementById('settingTime').value,
       stockLimit: document.getElementById('settingStock').value,
       map: document.getElementById('settingMap').value,
@@ -361,7 +367,9 @@ function initHudCards() {
   Object.keys(hudCardEls).forEach(k => delete hudCardEls[k]);
   Object.entries(gamePlayers).forEach(([id, p]) => {
     const root = document.createElement('div');
-    root.className = 'hud-card team-' + (p.team || 'red');
+    const isFFA = currentMatchMode === 'ffa';
+    root.className = 'hud-card' + (isFFA ? '' : ' team-' + (p.team || 'red'));
+    if (isFFA) root.style.borderTopColor = SKIN_COLORS[p.skin] || '#999';
     root.innerHTML = `
       <div class="hud-card-top">
         <div class="hud-card-portrait"></div>
@@ -422,7 +430,13 @@ let bullets = []; // {id, ownerId, x, y, vx, vy, spawnTime}
 let lastFireTime = -9999;
 let bulletIdCounter = 0;
 
+function isTypingInInput() {
+  const t = document.activeElement;
+  return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
+}
+
 window.addEventListener('keydown', (e) => {
+  if (isTypingInInput()) return; // chat'e yaziyorsa oyun tuslarini yok say
   const k = e.key.toLowerCase();
   if (!(k in keys)) return;
   if (k === 'w' && !keys.w) jumpRequested = true;
@@ -431,6 +445,7 @@ window.addEventListener('keydown', (e) => {
   keys[k] = true;
 });
 window.addEventListener('keyup', (e) => {
+  if (isTypingInInput()) return;
   const k = e.key.toLowerCase();
   if (k in keys) keys[k] = false;
 });
@@ -442,6 +457,71 @@ function releaseAllKeys() {
 window.addEventListener('blur', releaseAllKeys);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) releaseAllKeys();
+});
+
+// ---- Chat ----
+let chatMessages = [];
+
+function appendChatMessage(msg) {
+  chatMessages.push(msg);
+  if (chatMessages.length > 50) chatMessages.shift();
+  renderChatMessages('lobbyChatMessages');
+  renderChatMessages('gameChatMessages');
+  flashChatVisible();
+}
+
+function renderChatMessages(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = chatMessages.map(m => `<div class="chat-line"><b>${escapeHtml(m.name)}:</b> ${escapeHtml(m.text)}</div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function flashChatVisible() {
+  const el = document.getElementById('hudChat');
+  if (!el) return;
+  el.classList.add('chat-visible');
+  clearTimeout(flashChatVisible._t);
+  flashChatVisible._t = setTimeout(() => {
+    if (document.activeElement !== document.getElementById('gameChatInput')) {
+      el.classList.remove('chat-visible');
+    }
+  }, 4000);
+}
+
+function setupChatInput(inputEl) {
+  inputEl.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const text = inputEl.value.trim();
+      if (text) socket.emit('chatMessage', text);
+      inputEl.value = '';
+      inputEl.blur();
+    } else if (e.key === 'Escape') {
+      inputEl.value = '';
+      inputEl.blur();
+    }
+  });
+  inputEl.addEventListener('focus', () => {
+    if (inputEl.id === 'gameChatInput') flashChatVisible();
+  });
+}
+setupChatInput(document.getElementById('lobbyChatInput'));
+setupChatInput(document.getElementById('gameChatInput'));
+
+socket.on('chatMessage', (msg) => appendChatMessage(msg));
+
+// Enter'a basinca (bir input'a yazmiyorsak) mevcut ekranin chat kutusunu ac
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || isTypingInInput()) return;
+  const gameVisible = !document.getElementById('screen-game').classList.contains('hidden');
+  const lobbyVisible = !document.getElementById('screen-lobby').classList.contains('hidden');
+  if (gameVisible) {
+    document.getElementById('gameChatInput').focus();
+  } else if (lobbyVisible) {
+    document.getElementById('lobbyChatInput').focus();
+  }
 });
 
 socket.on('gameStarting', (data) => {
@@ -469,6 +549,7 @@ socket.on('gameStarting', (data) => {
   matchEndedInfo = null;
   matchStartTime = performance.now();
   matchTimeLimitSec = (data.settings && data.settings.timeLimit) ? data.settings.timeLimit * 60 : 0;
+  currentMatchMode = (data.settings && data.settings.mode) || 'teams';
   initHudCards();
   showScreen('screen-game');
   if (!gameLoopRunning) {
@@ -523,6 +604,7 @@ let amEliminated = false;
 let matchEndedInfo = null;
 let matchStartTime = 0;
 let matchTimeLimitSec = 0;
+let currentMatchMode = 'teams';
 
 socket.on('matchEnded', (data) => {
   matchEndedInfo = data;
@@ -795,7 +877,12 @@ function renderGame() {
     ctx.font = 'bold 32px sans-serif';
     ctx.textAlign = 'center';
     const w = matchEndedInfo.winner;
-    const text = w === 'draw' ? 'Berabere!' : (w === 'red' ? 'Kırmızı Takım Kazandı!' : 'Mavi Takım Kazandı!');
+    let text;
+    if (matchEndedInfo.mode === 'ffa') {
+      text = (w === 'draw' || !matchEndedInfo.winnerName) ? 'Berabere!' : `${matchEndedInfo.winnerName} Kazandı!`;
+    } else {
+      text = w === 'draw' ? 'Berabere!' : (w === 'red' ? 'Kırmızı Takım Kazandı!' : 'Mavi Takım Kazandı!');
+    }
     ctx.fillText(text, WORLD_W / 2, WORLD_H / 2 + 10);
   }
 }
