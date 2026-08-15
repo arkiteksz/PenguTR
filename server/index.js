@@ -136,15 +136,24 @@ function removePlayerFromRoom(socket) {
   broadcastGlobalStats();
 }
 
-function endMatch(room, winner, reason) {
+function endMatch(room, winner, reason, winnerName) {
   if (!room.game || !room.game.active) return;
   room.game.active = false;
   if (room.game.endTimerHandle) { clearTimeout(room.game.endTimerHandle); room.game.endTimerHandle = null; }
-  io.to(room.id).emit('matchEnded', { winner, reason });
+  io.to(room.id).emit('matchEnded', { winner, reason, winnerName: winnerName || null, mode: room.settings.mode });
 }
 
 function endMatchByTime(room) {
   if (!room.game || !room.game.active) return;
+  if (room.settings.mode === 'ffa') {
+    let best = null;
+    Object.entries(room.game.players).forEach(([id, p]) => {
+      const score = p.stocks * 1000 + p.health;
+      if (!best || score > best.score) best = { id, score, name: p.name };
+    });
+    endMatch(room, best ? best.id : 'draw', 'time', best ? best.name : null);
+    return;
+  }
   const teamScore = { red: 0, blue: 0 };
   Object.values(room.game.players).forEach(p => {
     teamScore[p.team] += p.stocks * 1000 + p.health; // stok once, sonra can esitlik bozar
@@ -156,6 +165,15 @@ function endMatchByTime(room) {
 }
 
 function checkEliminationWin(room) {
+  if (room.settings.mode === 'ffa') {
+    const alive = Object.entries(room.game.players).filter(([id, p]) => !p.eliminated);
+    if (alive.length <= 1) {
+      const winner = alive.length === 1 ? alive[0][0] : 'draw';
+      const winnerName = alive.length === 1 ? alive[0][1].name : null;
+      endMatch(room, winner, 'elimination', winnerName);
+    }
+    return;
+  }
   const players = Object.values(room.game.players);
   const redAlive = players.some(p => p.team === 'red' && !p.eliminated);
   const blueAlive = players.some(p => p.team === 'blue' && !p.eliminated);
@@ -204,7 +222,7 @@ io.on('connection', (socket) => {
       showInList: opts.showInList !== false,
       locked: false,
       players: new Map(),
-      settings: { timeLimit: 3, stockLimit: 3, map: getDefaultMapId() },
+      settings: { timeLimit: 3, stockLimit: 3, map: getDefaultMapId(), mode: 'teams' },
     };
     rooms.set(id, room);
 
@@ -291,6 +309,7 @@ io.on('connection', (socket) => {
     if (settings.timeLimit !== undefined) room.settings.timeLimit = Math.min(Math.max(parseInt(settings.timeLimit) || 0, 0), 60);
     if (settings.stockLimit !== undefined) room.settings.stockLimit = Math.min(Math.max(parseInt(settings.stockLimit) || 1, 1), 20);
     if (settings.map !== undefined && MAPS.has(settings.map)) room.settings.map = settings.map;
+    if (settings.mode !== undefined && ['teams', 'ffa'].includes(settings.mode)) room.settings.mode = settings.mode;
     broadcastRoomState(room.id);
   });
 
@@ -302,9 +321,15 @@ io.on('connection', (socket) => {
     const requester = room.players.get(socket.id);
     if (!requester || !requester.isHost) return;
 
+    const isFFA = room.settings.mode === 'ffa';
     const reds = Array.from(room.players.values()).filter(p => p.team === 'red').length;
     const blues = Array.from(room.players.values()).filter(p => p.team === 'blue').length;
-    if (reds === 0 || blues === 0) {
+    if (isFFA) {
+      if (reds + blues < 2) {
+        socket.emit('errorMsg', 'FFA için en az 2 oyuncu olmalı');
+        return;
+      }
+    } else if (reds === 0 || blues === 0) {
       socket.emit('errorMsg', 'Her iki takımda da en az 1 oyuncu olmalı');
       return;
     }
@@ -317,20 +342,32 @@ io.on('connection', (socket) => {
     }
 
     room.game = { active: true, players: {}, mapId: mapData.id, mapData, endTimerHandle: null };
-    let ri = 0, bi = 0;
-    const redSpawns = mapData.spawns.red && mapData.spawns.red.length ? mapData.spawns.red : [{ x: 200, y: 500 }];
-    const blueSpawns = mapData.spawns.blue && mapData.spawns.blue.length ? mapData.spawns.blue : [{ x: 1080, y: 500 }];
-    room.players.forEach(p => {
-      if (p.team === 'red') {
-        const sp = redSpawns[ri % redSpawns.length];
+    if (isFFA) {
+      const allSpawns = [...(mapData.spawns.red || []), ...(mapData.spawns.blue || [])];
+      const spawnList = allSpawns.length ? allSpawns : [{ x: 640, y: 400 }];
+      let idx = 0;
+      room.players.forEach(p => {
+        if (p.team === 'spectator') return;
+        const sp = spawnList[idx % spawnList.length];
+        idx++;
         room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false };
-        ri++;
-      } else if (p.team === 'blue') {
-        const sp = blueSpawns[bi % blueSpawns.length];
-        room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false };
-        bi++;
-      }
-    });
+      });
+    } else {
+      let ri = 0, bi = 0;
+      const redSpawns = mapData.spawns.red && mapData.spawns.red.length ? mapData.spawns.red : [{ x: 200, y: 500 }];
+      const blueSpawns = mapData.spawns.blue && mapData.spawns.blue.length ? mapData.spawns.blue : [{ x: 1080, y: 500 }];
+      room.players.forEach(p => {
+        if (p.team === 'red') {
+          const sp = redSpawns[ri % redSpawns.length];
+          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false };
+          ri++;
+        } else if (p.team === 'blue') {
+          const sp = blueSpawns[bi % blueSpawns.length];
+          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false };
+          bi++;
+        }
+      });
+    }
 
     if (room.settings.timeLimit > 0) {
       room.game.endTimerHandle = setTimeout(() => endMatchByTime(room), room.settings.timeLimit * 60 * 1000);
@@ -441,6 +478,14 @@ io.on('connection', (socket) => {
 
     io.to(room.id).emit('playersUpdate', room.game.players);
     if (target.eliminated) checkEliminationWin(room);
+  });
+
+  socket.on('chatMessage', (text) => {
+    const info = players.get(socket.id);
+    if (!info || !info.roomId) return;
+    text = (text || '').toString().trim().slice(0, 200);
+    if (!text) return;
+    io.to(info.roomId).emit('chatMessage', { name: info.name, text, ts: Date.now() });
   });
 
   socket.on('getMaps', (cb) => {
