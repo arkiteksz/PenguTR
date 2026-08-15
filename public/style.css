@@ -343,3 +343,65 @@ body {
   .hud-card-lives { font-size: 14px; }
   .hud-card-name, .hud-card-weapon { font-size: 9px; }
 }
+
+/* ---- Chat: lobi ---- */
+.lobby-chat {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.lobby-chat .chat-messages {
+  height: 90px;
+  overflow-y: auto;
+  font-size: 12px;
+  color: #cfd6c8;
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.chat-line { line-height: 1.4; word-break: break-word; }
+.chat-line b { color: #f0c040; }
+.chat-input {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 5px;
+  border: 1px solid #3a4a3a;
+  background: #0f140f;
+  color: #fff;
+  font-size: 12px;
+}
+.chat-input:focus { outline: 2px solid #4a90d9; }
+
+/* ---- Chat: oyun ici (yari saydam, otomatik gizlenen) ---- */
+.hud-chat {
+  position: absolute;
+  bottom: 3%;
+  right: 2%;
+  width: 26%;
+  min-width: 200px;
+  opacity: 0.12;
+  transition: opacity 0.3s ease;
+  pointer-events: auto;
+}
+.hud-chat.chat-visible { opacity: 0.95; }
+.hud-chat .chat-messages {
+  max-height: 110px;
+  overflow-y: auto;
+  font-size: 11px;
+  color: #fff;
+  margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+}
+.hud-chat .chat-input {
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(10,14,10,0.7);
+  color: #fff;
+  font-size: 11px;
+}
