@@ -339,8 +339,77 @@ function getTintedFrame(skin, frameIdx) {
   return tintedCache[(skin || 'blue') + '_' + frameIdx] || null;
 }
 
+const portraitUrlCache = {};
+function getSkinPortraitUrl(skin) {
+  const key = skin || 'blue';
+  if (portraitUrlCache[key]) return portraitUrlCache[key];
+  const c = getTintedFrame(key, 0);
+  if (!c) return null;
+  const url = c.toDataURL();
+  portraitUrlCache[key] = url;
+  return url;
+}
+
 let playerVisual = {};
 let remoteMoveInfo = {};
+
+// ---- HUD kartlari ----
+const hudCardEls = {}; // playerId -> {root, portrait, name, lives, weapon, bar}
+function initHudCards() {
+  const container = document.getElementById('hudCards');
+  container.innerHTML = '';
+  Object.keys(hudCardEls).forEach(k => delete hudCardEls[k]);
+  Object.entries(gamePlayers).forEach(([id, p]) => {
+    const root = document.createElement('div');
+    root.className = 'hud-card team-' + (p.team || 'red');
+    root.innerHTML = `
+      <div class="hud-card-top">
+        <div class="hud-card-portrait"></div>
+        <div class="hud-card-nameblock">
+          <div class="hud-card-name">${escapeHtml(p.name || '')}</div>
+          <div class="hud-card-lives">3</div>
+        </div>
+      </div>
+      <div class="hud-card-weapon">Pistol</div>
+      <div class="hud-card-healthbar-wrap"><div class="hud-card-healthbar"></div></div>
+    `;
+    container.appendChild(root);
+    hudCardEls[id] = {
+      root,
+      portrait: root.querySelector('.hud-card-portrait'),
+      lives: root.querySelector('.hud-card-lives'),
+      bar: root.querySelector('.hud-card-healthbar'),
+    };
+    const url = getSkinPortraitUrl(p.skin);
+    if (url) hudCardEls[id].portrait.style.backgroundImage = `url(${url})`;
+  });
+}
+
+function updateHudCards() {
+  Object.entries(gamePlayers).forEach(([id, p]) => {
+    if (!hudCardEls[id]) return; // yeni katilan biri varsa bir sonraki gameStarting'de eklenecek
+    const els = hudCardEls[id];
+    const health = typeof p.health === 'number' ? p.health : 100;
+    const stocks = typeof p.stocks === 'number' ? p.stocks : 3;
+    els.lives.textContent = stocks;
+    els.lives.classList.toggle('zero', stocks <= 0);
+    els.bar.style.width = Math.max(0, health) + '%';
+    const hue = Math.max(0, Math.min(120, health * 1.2));
+    els.bar.style.background = `hsl(${hue}, 70%, 45%)`;
+    els.root.classList.toggle('eliminated', !!p.eliminated);
+  });
+}
+
+function updateTimerDisplay() {
+  const el = document.getElementById('hudTimerText');
+  if (!el) return;
+  if (!matchTimeLimitSec) { el.textContent = '∞'; return; }
+  const elapsed = (performance.now() - matchStartTime) / 1000;
+  const remaining = Math.max(0, Math.ceil(matchTimeLimitSec - elapsed));
+  const mm = Math.floor(remaining / 60);
+  const ss = remaining % 60;
+  el.textContent = `${mm}:${ss.toString().padStart(2, '0')}`;
+}
 
 // ---- Silah (pistol - test) ----
 const PISTOL = {
@@ -398,6 +467,9 @@ socket.on('gameStarting', (data) => {
   stunUntil = 0;
   amEliminated = false;
   matchEndedInfo = null;
+  matchStartTime = performance.now();
+  matchTimeLimitSec = (data.settings && data.settings.timeLimit) ? data.settings.timeLimit * 60 : 0;
+  initHudCards();
   showScreen('screen-game');
   if (!gameLoopRunning) {
     gameLoopRunning = true;
@@ -449,9 +521,15 @@ socket.on('youRespawned', ({ x, y }) => {
 
 let amEliminated = false;
 let matchEndedInfo = null;
+let matchStartTime = 0;
+let matchTimeLimitSec = 0;
 
 socket.on('matchEnded', (data) => {
   matchEndedInfo = data;
+  setTimeout(() => {
+    matchEndedInfo = null;
+    if (currentRoomId) enterLobby();
+  }, 4000);
 });
 
 
@@ -587,6 +665,8 @@ function gameLoop(now) {
 
   updateVisualStates(dt, now);
   updateBullets(dt, now);
+  updateHudCards();
+  updateTimerDisplay();
   renderGame();
   requestAnimationFrame(gameLoop);
 }
@@ -686,12 +766,6 @@ function renderGame() {
     ctx.textAlign = 'center';
     ctx.fillText(p.name, cx, bottomY - DRAW_H - 6);
 
-    // Gecici can/stok yazisi (asil HUD kartlari sonraki adimda gelecek)
-    if (typeof p.health === 'number') {
-      ctx.fillStyle = p.health > 50 ? '#8fe08a' : (p.health > 20 ? '#f0c040' : '#e05c3f');
-      ctx.font = '11px sans-serif';
-      ctx.fillText(`${Math.round(p.health)} can | ${p.stocks} stok`, cx, bottomY - DRAW_H - 20);
-    }
   });
 
   // ---- Mermiler ----
