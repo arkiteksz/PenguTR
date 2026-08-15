@@ -367,6 +367,38 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('selfDestruct', () => {
+    const info = players.get(socket.id);
+    if (!info || !info.roomId) return;
+    const room = rooms.get(info.roomId);
+    if (!room || !room.game || !room.game.active) return;
+    const target = room.game.players[socket.id];
+    if (!target || target.eliminated || target.invulnerable) return;
+
+    target.health = 0;
+    target.stocks -= 1;
+    if (target.stocks <= 0) {
+      target.eliminated = true;
+    } else {
+      const spawns = target.team === 'red' ? room.game.mapData.spawns.red : room.game.mapData.spawns.blue;
+      const spawnList = (spawns && spawns.length) ? spawns : [{ x: 200, y: 500 }];
+      const sp = spawnList[Math.floor(Math.random() * spawnList.length)];
+      target.x = sp.x; target.y = sp.y;
+      target.health = 100;
+      target.invulnerable = true;
+      io.to(socket.id).emit('youRespawned', { x: sp.x, y: sp.y });
+      setTimeout(() => {
+        if (room.game && room.game.players[socket.id]) {
+          room.game.players[socket.id].invulnerable = false;
+          io.to(room.id).emit('playersUpdate', room.game.players);
+        }
+      }, 2000);
+    }
+
+    io.to(room.id).emit('playersUpdate', room.game.players);
+    if (target.eliminated) checkEliminationWin(room);
+  });
+
   socket.on('playerHit', ({ targetId, dirX, weapon, bulletId }) => {
     const info = players.get(socket.id);
     if (!info || !info.roomId) return;
