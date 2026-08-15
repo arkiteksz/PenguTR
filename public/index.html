@@ -108,14 +108,14 @@
 
     <div class="teams-row">
       <div class="team-col team-red">
-        <div class="team-header">Red <button id="btnToRed" class="arrow-btn">▶</button></div>
+        <div class="team-header"><span id="redTeamLabel">Red</span> <button id="btnToRed" class="arrow-btn">▶</button></div>
         <div id="teamRedList" class="team-list"></div>
       </div>
       <div class="team-col team-spectator">
         <div class="team-header">İzleyici</div>
         <div id="teamSpecList" class="team-list"></div>
       </div>
-      <div class="team-col team-blue">
+      <div class="team-col team-blue" id="teamBlueCol">
         <div class="team-header"><button id="btnToBlue" class="arrow-btn">◀</button> Blue</div>
         <div id="teamBlueList" class="team-list"></div>
       </div>
@@ -129,6 +129,13 @@
     </div>
 
     <div class="settings-row">
+      <div class="setting-item">
+        <label>Mod</label>
+        <select id="settingMode">
+          <option value="teams">Takımlı</option>
+          <option value="ffa">FFA</option>
+        </select>
+      </div>
       <div class="setting-item">
         <label>Süre (dk)</label>
         <input id="settingTime" type="number" min="0" max="60" value="3">
@@ -147,7 +154,12 @@
     <div id="notHostHint" class="hint">Ayarları ve başlatmayı sadece oda sahibi yapabilir.</div>
 
     <div class="controls-legend">
-      <strong>Kontroller:</strong> Hareket: A / D — Zıplama: W — Ateş: U — Aşağı in: S
+      <strong>Kontroller:</strong> Hareket: A / D — Zıplama: W — Ateş: U — Aşağı in: S — Chat: Enter
+    </div>
+
+    <div class="lobby-chat">
+      <div class="chat-messages" id="lobbyChatMessages"></div>
+      <input type="text" id="lobbyChatInput" class="chat-input" placeholder="Enter'a bas, yaz, tekrar Enter'a bas gönder" maxlength="200">
     </div>
   </div>
 </div>
@@ -163,6 +175,11 @@
     </div>
 
     <div class="hud-cards" id="hudCards"></div>
+
+    <div class="hud-chat" id="hudChat">
+      <div class="chat-messages" id="gameChatMessages"></div>
+      <input type="text" id="gameChatInput" class="chat-input" placeholder="Enter ile yaz..." maxlength="200">
+    </div>
   </div>
 </div>
 
