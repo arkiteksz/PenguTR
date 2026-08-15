@@ -484,6 +484,7 @@ function checkKillZones() {
   for (const z of zones) {
     if (myPos.x + SQUARE > z.x && myPos.x < z.x + z.w && myPos.y + SQUARE > z.y && myPos.y < z.y + z.h) {
       respawnPlayer();
+      socket.emit('selfDestruct');
       return;
     }
   }
