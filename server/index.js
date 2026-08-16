@@ -48,10 +48,16 @@ function getDefaultMapId() {
   return keys.length ? keys[0] : null;
 }
 
-// Silah istatistikleri - hile riskine karsi hasar/knockback burada, sunucuda tutulur
+// Silah istatistikleri - hile riskine karsi hasar/knockback/mermi burada, sunucuda tutulur
 const WEAPON_CONFIG = {
-  pistol: { name: 'Pistol', damage: 8, knockback: 340 },
+  pistol:  { name: 'Pistol',  damage: 8,  knockback: 340, fireRateMs: 333,  totalAmmo: Infinity, bulletSpeed: 700,  explosive: false },
+  smg:     { name: 'SMG',     damage: 4,  knockback: 150, fireRateMs: 100,  totalAmmo: 60,        bulletSpeed: 750,  explosive: false },
+  shotgun: { name: 'Shotgun', damage: 6,  knockback: 420, fireRateMs: 800,  totalAmmo: 20,        bulletSpeed: 550,  explosive: false, pelletCount: 5, spreadDeg: 26 },
+  sniper:  { name: 'Sniper',  damage: 30, knockback: 620, fireRateMs: 1400, totalAmmo: 6,         bulletSpeed: 1500, explosive: false },
+  rocket:  { name: 'Roket',   damage: 20, knockback: 520, fireRateMs: 1200, totalAmmo: 4,         bulletSpeed: 420,  explosive: true, explosionRadius: 110 },
+  grenade: { name: 'Granat',  damage: 16, knockback: 460, fireRateMs: 1100, totalAmmo: 5,         bulletSpeed: 480,  explosive: true, explosionRadius: 100, arcing: true },
 };
+const PICKUP_WEAPONS = ['smg', 'shotgun', 'sniper', 'rocket', 'grenade'];
 
 function genRoomId() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -140,7 +146,31 @@ function endMatch(room, winner, reason, winnerName) {
   if (!room.game || !room.game.active) return;
   room.game.active = false;
   if (room.game.endTimerHandle) { clearTimeout(room.game.endTimerHandle); room.game.endTimerHandle = null; }
+  if (room.game.crateTimerHandle) { clearTimeout(room.game.crateTimerHandle); room.game.crateTimerHandle = null; }
   io.to(room.id).emit('matchEnded', { winner, reason, winnerName: winnerName || null, mode: room.settings.mode });
+}
+
+const CRATE_MAX_ACTIVE = 3;
+function scheduleNextCrate(room) {
+  const delay = 15000 + Math.random() * 5000; // 15-20 sn
+  room.game.crateTimerHandle = setTimeout(() => {
+    if (!room.game || !room.game.active) return;
+    spawnCrate(room);
+    scheduleNextCrate(room);
+  }, delay);
+}
+
+function spawnCrate(room) {
+  if (Object.keys(room.game.crates).length >= CRATE_MAX_ACTIVE) return;
+  const platforms = (room.game.mapData.platforms || []);
+  if (!platforms.length) return;
+  const pl = platforms[Math.floor(Math.random() * platforms.length)];
+  const x = pl.x + 20 + Math.random() * Math.max(1, pl.w - 40);
+  const y = pl.y - 34;
+  const weapon = PICKUP_WEAPONS[Math.floor(Math.random() * PICKUP_WEAPONS.length)];
+  const id = 'crate' + Math.random().toString(36).slice(2, 9);
+  room.game.crates[id] = { id, x, y, weapon };
+  io.to(room.id).emit('crateSpawned', room.game.crates[id]);
 }
 
 function endMatchByTime(room) {
@@ -341,7 +371,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    room.game = { active: true, players: {}, mapId: mapData.id, mapData, endTimerHandle: null };
+    room.game = { active: true, players: {}, mapId: mapData.id, mapData, endTimerHandle: null, crates: {}, crateTimerHandle: null };
     if (isFFA) {
       const allSpawns = [...(mapData.spawns.red || []), ...(mapData.spawns.blue || [])];
       const spawnList = allSpawns.length ? allSpawns : [{ x: 640, y: 400 }];
@@ -350,7 +380,7 @@ io.on('connection', (socket) => {
         if (p.team === 'spectator') return;
         const sp = spawnList[idx % spawnList.length];
         idx++;
-        room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false };
+        room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0 };
       });
     } else {
       let ri = 0, bi = 0;
@@ -359,11 +389,11 @@ io.on('connection', (socket) => {
       room.players.forEach(p => {
         if (p.team === 'red') {
           const sp = redSpawns[ri % redSpawns.length];
-          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false };
+          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0 };
           ri++;
         } else if (p.team === 'blue') {
           const sp = blueSpawns[bi % blueSpawns.length];
-          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false };
+          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0 };
           bi++;
         }
       });
@@ -372,6 +402,7 @@ io.on('connection', (socket) => {
     if (room.settings.timeLimit > 0) {
       room.game.endTimerHandle = setTimeout(() => endMatchByTime(room), room.settings.timeLimit * 60 * 1000);
     }
+    scheduleNextCrate(room);
 
     io.to(room.id).emit('gameStarting', { settings: room.settings, players: room.game.players, map: mapData });
   });
@@ -394,13 +425,31 @@ io.on('connection', (socket) => {
     if (!info || !info.roomId) return;
     const room = rooms.get(info.roomId);
     if (!room || !room.game || !room.game.active) return;
+    const shooter = room.game.players[socket.id];
+    if (!shooter || shooter.eliminated) return;
+
+    const wep = WEAPON_CONFIG[shooter.weapon] || WEAPON_CONFIG.pistol;
+    const now = Date.now();
+    if (now - shooter.lastShotAt < wep.fireRateMs - 20) return; // hile/asiri hizli ates onleme (kucuk tolerans)
+    if (wep.totalAmmo !== Infinity && shooter.ammo <= 0) return;
+
+    shooter.lastShotAt = now;
+    if (wep.totalAmmo !== Infinity) {
+      shooter.ammo -= 1;
+      if (shooter.ammo <= 0) {
+        shooter.weapon = 'pistol';
+        shooter.ammo = Infinity;
+      }
+      io.to(room.id).emit('playersUpdate', room.game.players);
+    }
+
     socket.to(room.id).emit('playerShot', {
       shooterId: socket.id,
       id: data.id,
       x: data.x,
       y: data.y,
       dirX: data.dirX,
-      weapon: data.weapon || 'pistol',
+      weapon: shooter.weapon,
     });
   });
 
@@ -411,73 +460,92 @@ io.on('connection', (socket) => {
     if (!room || !room.game || !room.game.active) return;
     const target = room.game.players[socket.id];
     if (!target || target.eliminated || target.invulnerable) return;
-
     target.health = 0;
+    applyDeathOrRespawn(room, socket.id, target);
+    io.to(room.id).emit('playersUpdate', room.game.players);
+    if (target.eliminated) checkEliminationWin(room);
+  });
+
+  function applyDeathOrRespawn(room, targetId, target) {
     target.stocks -= 1;
     if (target.stocks <= 0) {
       target.eliminated = true;
+      target.health = 0;
     } else {
       const spawns = target.team === 'red' ? room.game.mapData.spawns.red : room.game.mapData.spawns.blue;
       const spawnList = (spawns && spawns.length) ? spawns : [{ x: 200, y: 500 }];
       const sp = spawnList[Math.floor(Math.random() * spawnList.length)];
       target.x = sp.x; target.y = sp.y;
       target.health = 100;
+      target.weapon = 'pistol';
+      target.ammo = Infinity;
       target.invulnerable = true;
-      io.to(socket.id).emit('youRespawned', { x: sp.x, y: sp.y });
+      io.to(targetId).emit('youRespawned', { x: sp.x, y: sp.y });
       setTimeout(() => {
-        if (room.game && room.game.players[socket.id]) {
-          room.game.players[socket.id].invulnerable = false;
+        if (room.game && room.game.players[targetId]) {
+          room.game.players[targetId].invulnerable = false;
           io.to(room.id).emit('playersUpdate', room.game.players);
         }
       }, 2000);
     }
+  }
 
-    io.to(room.id).emit('playersUpdate', room.game.players);
-    if (target.eliminated) checkEliminationWin(room);
-  });
-
-  socket.on('playerHit', ({ targetId, dirX, weapon, bulletId }) => {
-    const info = players.get(socket.id);
-    if (!info || !info.roomId) return;
-    const room = rooms.get(info.roomId);
-    if (!room || !room.game || !room.game.active) return;
+  function applyDamage(room, shooterSocket, targetId, weaponKey, dirX, bulletId) {
     const target = room.game.players[targetId];
     if (!target || target.eliminated || target.invulnerable) return;
+    const wep = WEAPON_CONFIG[weaponKey] || WEAPON_CONFIG.pistol;
 
-    const wep = WEAPON_CONFIG[weapon] || WEAPON_CONFIG.pistol;
     const healthAfter = Math.max(0, target.health - wep.damage);
     const t = (100 - healthAfter) / 100;
     const multiplier = 1 + 2 * t * t; // can azaldikca ustel artan knockback (1x -> 3x)
     const force = wep.knockback * multiplier;
 
     target.health = healthAfter;
-    io.to(targetId).emit('youWereHit', { byId: socket.id, dirX: Math.sign(dirX) || 1, force });
+    io.to(targetId).emit('youWereHit', { byId: shooterSocket.id, dirX: Math.sign(dirX) || 1, force });
     if (bulletId) io.to(room.id).emit('bulletRemoved', { bulletId });
 
-    if (healthAfter <= 0) {
-      target.stocks -= 1;
-      if (target.stocks <= 0) {
-        target.eliminated = true;
-        target.health = 0;
-      } else {
-        const spawns = target.team === 'red' ? room.game.mapData.spawns.red : room.game.mapData.spawns.blue;
-        const spawnList = (spawns && spawns.length) ? spawns : [{ x: 200, y: 500 }];
-        const sp = spawnList[Math.floor(Math.random() * spawnList.length)];
-        target.x = sp.x; target.y = sp.y;
-        target.health = 100;
-        target.invulnerable = true;
-        io.to(targetId).emit('youRespawned', { x: sp.x, y: sp.y });
-        setTimeout(() => {
-          if (room.game && room.game.players[targetId]) {
-            room.game.players[targetId].invulnerable = false;
-            io.to(room.id).emit('playersUpdate', room.game.players);
-          }
-        }, 2000);
-      }
-    }
+    if (healthAfter <= 0) applyDeathOrRespawn(room, targetId, target);
 
     io.to(room.id).emit('playersUpdate', room.game.players);
     if (target.eliminated) checkEliminationWin(room);
+  }
+
+  socket.on('playerHit', ({ targetId, dirX, weapon, bulletId }) => {
+    const info = players.get(socket.id);
+    if (!info || !info.roomId) return;
+    const room = rooms.get(info.roomId);
+    if (!room || !room.game || !room.game.active) return;
+    applyDamage(room, socket, targetId, weapon, dirX, bulletId);
+  });
+
+  socket.on('explosionHit', ({ targets, x, y, weapon, bulletId }) => {
+    const info = players.get(socket.id);
+    if (!info || !info.roomId) return;
+    const room = rooms.get(info.roomId);
+    if (!room || !room.game || !room.game.active) return;
+    (targets || []).slice(0, 16).forEach(t => {
+      applyDamage(room, socket, t.id, weapon, t.dirX, null);
+    });
+    if (bulletId) io.to(room.id).emit('bulletRemoved', { bulletId });
+    io.to(room.id).emit('explosionFx', { x, y });
+  });
+
+  socket.on('pickupCrate', ({ crateId }) => {
+    const info = players.get(socket.id);
+    if (!info || !info.roomId) return;
+    const room = rooms.get(info.roomId);
+    if (!room || !room.game || !room.game.active || !room.game.crates) return;
+    const crate = room.game.crates[crateId];
+    if (!crate) return;
+    const player = room.game.players[socket.id];
+    if (!player || player.eliminated) return;
+
+    delete room.game.crates[crateId];
+    io.to(room.id).emit('crateRemoved', { crateId });
+
+    player.weapon = crate.weapon;
+    player.ammo = WEAPON_CONFIG[crate.weapon].totalAmmo;
+    io.to(room.id).emit('playersUpdate', room.game.players);
   });
 
   socket.on('chatMessage', (text) => {
