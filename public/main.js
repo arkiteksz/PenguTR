@@ -297,6 +297,24 @@ let mapBgImage = null;
 
 // ---- Karakter sprite / renklendirme ----
 const SKIN_COLORS = { blue: '#3d6fb0', green: '#3d8f4a', black: '#2a2a2a', purple: '#7a3d9e' };
+
+// ---- Silah gorselleri (elde tutulan PNG) ----
+// offsetX/offsetY: karakterin ayak-orta noktasina (cx, bottomY) gore konum, saga bakarken.
+// width: gorselin ekranda kac piksel genislikte cizilecegi (oran korunur). Ince ayar icin bu sayilari degistir.
+const WEAPON_SPRITES = {
+  pistol:  { src: '/assets/weapons/pistol.png',  offsetX: 16, offsetY: -38, width: 22 },
+  smg:     { src: '/assets/weapons/smg.png',     offsetX: 18, offsetY: -38, width: 28 },
+  shotgun: { src: '/assets/weapons/shotgun.png', offsetX: 18, offsetY: -36, width: 32 },
+  sniper:  { src: '/assets/weapons/sniper.png',  offsetX: 20, offsetY: -40, width: 34 },
+  rocket:  { src: '/assets/weapons/rocket.png',  offsetX: 18, offsetY: -36, width: 30 },
+  grenade: { src: '/assets/weapons/grenade.png', offsetX: 14, offsetY: -34, width: 16 },
+};
+const weaponImages = {};
+Object.entries(WEAPON_SPRITES).forEach(([key, cfg]) => {
+  const img = new Image();
+  img.src = cfg.src; // dosya henuz yoksa sessizce yuklenmez, oyun bozulmaz
+  weaponImages[key] = img;
+});
 const WALK_FRAME_COUNT = 4;
 const walkFramesRaw = [];
 const tintedCache = {};
@@ -940,6 +958,13 @@ function renderGame() {
     } else {
       ctx.fillStyle = SKIN_COLORS[p.skin] || '#888';
       ctx.fillRect(-SQUARE / 2, -SQUARE, SQUARE, SQUARE);
+    }
+    const wepSprite = WEAPON_SPRITES[p.weapon];
+    const wepImg = weaponImages[p.weapon];
+    if (wepSprite && wepImg && wepImg.complete && wepImg.naturalWidth > 0) {
+      const ratio = wepSprite.width / wepImg.naturalWidth;
+      const wH = wepImg.naturalHeight * ratio;
+      ctx.drawImage(wepImg, wepSprite.offsetX, wepSprite.offsetY, wepSprite.width, wH);
     }
     ctx.restore();
 
