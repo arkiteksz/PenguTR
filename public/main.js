@@ -302,12 +302,12 @@ const SKIN_COLORS = { blue: '#3d6fb0', green: '#3d8f4a', black: '#2a2a2a', purpl
 // offsetX/offsetY: karakterin ayak-orta noktasina (cx, bottomY) gore konum, saga bakarken.
 // width: gorselin ekranda kac piksel genislikte cizilecegi (oran korunur). Ince ayar icin bu sayilari degistir.
 const WEAPON_SPRITES = {
-  pistol:  { src: '/assets/weapons/pistol.png',  offsetX: 16, offsetY: -38, width: 22 },
-  smg:     { src: '/assets/weapons/smg.png',     offsetX: 18, offsetY: -38, width: 28 },
-  shotgun: { src: '/assets/weapons/shotgun.png', offsetX: 18, offsetY: -36, width: 32 },
-  sniper:  { src: '/assets/weapons/sniper.png',  offsetX: 20, offsetY: -40, width: 34 },
-  rocket:  { src: '/assets/weapons/rocket.png',  offsetX: 18, offsetY: -36, width: 30 },
-  grenade: { src: '/assets/weapons/grenade.png', offsetX: 14, offsetY: -34, width: 16 },
+  pistol:  { src: '/assets/weapons/pistol.png',  offsetX: 10, offsetY: -38, width: 22 },
+  smg:     { src: '/assets/weapons/smg.png',     offsetX: 11, offsetY: -38, width: 28 },
+  shotgun: { src: '/assets/weapons/shotgun.png', offsetX: 11, offsetY: -36, width: 32 },
+  sniper:  { src: '/assets/weapons/sniper.png',  offsetX: 12, offsetY: -40, width: 34 },
+  rocket:  { src: '/assets/weapons/rocket.png',  offsetX: 11, offsetY: -36, width: 30 },
+  grenade: { src: '/assets/weapons/grenade.png', offsetX: 8,  offsetY: -34, width: 16 },
 };
 const weaponImages = {};
 Object.entries(WEAPON_SPRITES).forEach(([key, cfg]) => {
