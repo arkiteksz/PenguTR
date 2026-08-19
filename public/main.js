@@ -305,7 +305,7 @@ const WEAPON_SPRITES = {
   pistol:  { src: '/assets/weapons/pistol.png',  offsetX: 0, offsetY: -28, width: 30 },
   smg:     { src: '/assets/weapons/smg.png',     offsetX: -10, offsetY: -45, width: 60 },
   shotgun: { src: '/assets/weapons/shotgun.png', offsetX: -20, offsetY: -26, width: 70 },
-  sniper:  { src: '/assets/weapons/sniper.png',  offsetX: 0, offsetY: -30, width: 80 },
+  sniper:  { src: '/assets/weapons/sniper.png',  offsetX: -10, offsetY: -30, width: 80 },
   rocket:  { src: '/assets/weapons/rocket.png',  offsetX: -33, offsetY: -36, width: 80 },
   grenade: { src: '/assets/weapons/grenade.png', offsetX: 8,  offsetY: -34, width: 16 },
 };
