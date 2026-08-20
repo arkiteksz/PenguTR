@@ -5,28 +5,37 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Penguen Savaşları</title>
 <link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ranchers&display=swap" rel="stylesheet">
 </head>
 <body>
 
 <div class="bg-stripes"></div>
 
-<!-- İSİM EKRANI -->
-<div id="screen-name" class="screen center-screen">
-  <div class="name-box">
-    <h1>🐧 Penguen Savaşları</h1>
-    <input id="nameInput" type="text" placeholder="İsmini yaz..." maxlength="20" autocomplete="off">
+<!-- İSİM EKRANI / KARAKTER SEÇİMİ -->
+<div id="screen-name" class="screen center-screen menu-screen">
+  <div class="menu-container">
+    <div class="menu-logo"></div>
 
-    <div class="skin-picker">
-      <div class="skin-label">Renk seç</div>
-      <div class="skin-options">
-        <button class="skin-btn active" data-skin="blue" style="--c:#3d6fb0">Mavi</button>
-        <button class="skin-btn" data-skin="green" style="--c:#3d8f4a">Yeşil</button>
-        <button class="skin-btn" data-skin="black" style="--c:#2a2a2a">Siyah</button>
-        <button class="skin-btn" data-skin="purple" style="--c:#7a3d9e">Mor</button>
+    <div class="menu-avatar-panel">
+      <canvas id="avatarPreview" width="220" height="275" class="menu-avatar-canvas"></canvas>
+      <div class="menu-color-picker">
+        <button class="menu-arrow" id="colorPrev">‹</button>
+        <div class="menu-color-row" id="colorRow"></div>
+        <button class="menu-arrow" id="colorNext">›</button>
       </div>
     </div>
 
-    <div class="hint">Enter'a bas ve devam et</div>
+    <div class="menu-options-panel">
+      <button class="menu-opt-btn" data-feature="sac">SAÇ</button>
+      <button class="menu-opt-btn" data-feature="sakal">SAKAL</button>
+      <button class="menu-opt-btn" data-feature="sapka">ŞAPKA</button>
+      <button class="menu-opt-btn" data-feature="gozluk">GÖZLÜK</button>
+      <button class="menu-opt-btn" data-feature="aksesuar">AKSESUAR</button>
+      <input id="nameInput" type="text" class="menu-name-input" placeholder="İSİM GİRİN" maxlength="20" autocomplete="off">
+      <button class="menu-bang-btn" id="btnBang">BANG!!</button>
+    </div>
   </div>
 </div>
 
