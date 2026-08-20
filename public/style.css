@@ -405,3 +405,182 @@ body {
   color: #fff;
   font-size: 11px;
 }
+
+/* ================= PENGBANG ANA MENU ================= */
+.menu-screen {
+  background-image: url('assets/menu/bg.png');
+  background-size: cover;
+  background-position: center;
+  min-height: 100vh;
+}
+
+.menu-container {
+  background-color: rgb(119, 194, 224);
+  border: clamp(6px, 1vw, 11px) ridge #41a3e4;
+  border-radius: 20px;
+  width: min(650px, 92vw);
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  padding: clamp(16px, 3vw, 24px);
+  padding-top: clamp(50px, 8vw, 70px);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+}
+
+.menu-logo {
+  background-image: url('assets/menu/logo.png');
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: center;
+  width: min(420px, 70%);
+  height: 130px;
+  position: absolute;
+  top: -46px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,0.35));
+}
+
+.menu-avatar-panel {
+  background: linear-gradient(180deg, #8fd0ee, #6ab8de);
+  border: clamp(6px, 1vw, 11px) ridge #41a3e4;
+  border-radius: 20px;
+  width: 270px;
+  max-width: 100%;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+  padding: 12px 0 16px;
+}
+
+.menu-avatar-canvas {
+  width: 220px;
+  height: 275px;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+.menu-color-picker {
+  background-color: rgb(119, 194, 224);
+  border: 6px ridge #41a3e4;
+  border-radius: 20px;
+  width: 90%;
+  height: 50px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.menu-color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.7);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+  flex-shrink: 0;
+}
+.menu-color-swatch:hover { transform: scale(1.12); }
+.menu-color-swatch.active {
+  border-color: #fff;
+  box-shadow: 0 0 0 3px #f0c040;
+}
+
+.menu-arrow {
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 26px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+}
+.menu-arrow:hover { transform: scale(1.2); }
+
+.menu-options-panel {
+  background: linear-gradient(180deg, #8fd0ee, #6ab8de);
+  border: clamp(6px, 1vw, 11px) ridge #41a3e4;
+  border-radius: 20px;
+  width: 270px;
+  max-width: 100%;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 0;
+}
+
+.menu-opt-btn {
+  width: 88%;
+  height: 50px;
+  border: 6px ridge #2f7fb8;
+  background: linear-gradient(180deg, #5cb3ee, #3a8fd0);
+  border-radius: 16px;
+  font-family: 'Ranchers', sans-serif;
+  letter-spacing: 1px;
+  color: #fff;
+  font-size: 22px;
+  text-shadow: 0 2px 2px rgba(0,0,0,0.25);
+  cursor: pointer;
+}
+.menu-opt-btn:hover { filter: brightness(1.08); }
+.menu-opt-btn:active { transform: translateY(1px); }
+
+.menu-name-input {
+  width: 76%;
+  height: 40px;
+  border: 6px ridge #c1d6e4;
+  border-radius: 16px;
+  background-color: rgb(230, 230, 230);
+  text-align: center;
+  font-family: 'Ranchers', sans-serif;
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: #333;
+}
+.menu-name-input::placeholder { color: #888; }
+.menu-name-input:focus { outline: 3px solid #f0c040; }
+
+.menu-bang-btn {
+  width: 88%;
+  height: 52px;
+  border: 6px ridge #c96a10;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffb04d, #fe8d15);
+  font-family: 'Ranchers', sans-serif;
+  letter-spacing: 2px;
+  color: #fff;
+  font-size: 24px;
+  text-shadow: 0 2px 2px rgba(0,0,0,0.3);
+  cursor: pointer;
+  margin-top: 4px;
+}
+.menu-bang-btn:hover { filter: brightness(1.08); }
+.menu-bang-btn:active { transform: translateY(1px); }
+
+@media (max-width: 640px) {
+  .menu-container { padding-top: 60px; gap: 10px; }
+  .menu-avatar-panel, .menu-options-panel { min-height: unset; width: 100%; }
+  .menu-avatar-canvas { width: 170px; height: 212px; }
+}
