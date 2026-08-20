@@ -31,15 +31,68 @@ nameInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') submitName();
 });
 
+// ---- Karakter rengi secici (sayfali, canli onizlemeli) ----
 let selectedSkin = 'blue';
-document.querySelectorAll('.skin-btn').forEach(btn => {
+let colorWindowStart = 0;
+const COLOR_WINDOW_SIZE = 4;
+
+function getColorOrder() {
+  return Object.keys(SKIN_COLORS);
+}
+
+function renderColorRow() {
+  const order = getColorOrder();
+  const row = document.getElementById('colorRow');
+  if (!row) return;
+  row.innerHTML = '';
+  for (let i = 0; i < COLOR_WINDOW_SIZE; i++) {
+    const key = order[(colorWindowStart + i) % order.length];
+    const dot = document.createElement('div');
+    dot.className = 'menu-color-swatch' + (key === selectedSkin ? ' active' : '');
+    dot.style.background = SKIN_COLORS[key];
+    dot.title = SKIN_NAMES[key] || key;
+    dot.addEventListener('click', () => {
+      selectedSkin = key;
+      renderColorRow();
+      drawAvatarPreview();
+    });
+    row.appendChild(dot);
+  }
+}
+
+document.getElementById('colorPrev').addEventListener('click', () => {
+  const order = getColorOrder();
+  colorWindowStart = (colorWindowStart - 1 + order.length) % order.length;
+  renderColorRow();
+});
+document.getElementById('colorNext').addEventListener('click', () => {
+  const order = getColorOrder();
+  colorWindowStart = (colorWindowStart + 1) % order.length;
+  renderColorRow();
+});
+
+function drawAvatarPreview() {
+  const canvas = document.getElementById('avatarPreview');
+  if (!canvas) return;
+  const ctx2 = canvas.getContext('2d');
+  ctx2.clearRect(0, 0, canvas.width, canvas.height);
+  const tinted = getTintedFrame(selectedSkin, 0);
+  if (!tinted) return; // sprite kareleri henuz yuklenmedi, birazdan tekrar cizilecek
+  const scale = Math.min(canvas.width / tinted.width, canvas.height / tinted.height);
+  const dw = tinted.width * scale;
+  const dh = tinted.height * scale;
+  ctx2.drawImage(tinted, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+}
+
+// Su an icin gorsel/dekoratif ozellik butonlari (ileride gercek kiyafet secimi olacak)
+document.querySelectorAll('.menu-opt-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.skin-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    selectedSkin = btn.dataset.skin;
-    nameInput.focus(); // buton odagi calmasin, Enter yine calissin
+    showToast('Bu özellik yakında eklenecek!');
+    nameInput.focus();
   });
 });
+
+document.getElementById('btnBang').addEventListener('click', submitName);
 
 function submitName() {
   const val = nameInput.value.trim();
@@ -296,18 +349,36 @@ let currentMap = null;
 let mapBgImage = null;
 
 // ---- Karakter sprite / renklendirme ----
-const SKIN_COLORS = { blue: '#3d6fb0', green: '#3d8f4a', black: '#2a2a2a', purple: '#7a3d9e' };
+const SKIN_COLORS = {
+  red:         '#d9382c',
+  orange:      '#e8791f',
+  yellow:      '#f0c419',
+  green:       '#3d8f4a',
+  blue:        '#3d6fb0',
+  purple:      '#7a3d9e',
+  pink:        '#e0559c',
+  black:       '#2a2a2a',
+  white:       '#e6e6e6',
+  skin:        '#d9a066',
+  brownLight:  '#a06a3a',
+  brownDark:   '#5c3a1e',
+};
+const SKIN_NAMES = {
+  red: 'Kırmızı', orange: 'Turuncu', yellow: 'Sarı', green: 'Yeşil',
+  blue: 'Mavi', purple: 'Mor', pink: 'Pembe', black: 'Siyah',
+  white: 'Beyaz', skin: 'Ten', brownLight: 'Açık Kahve', brownDark: 'Koyu Kahve',
+};
 
 // ---- Silah gorselleri (elde tutulan PNG) ----
 // offsetX/offsetY: karakterin ayak-orta noktasina (cx, bottomY) gore konum, saga bakarken.
 // width: gorselin ekranda kac piksel genislikte cizilecegi (oran korunur). Ince ayar icin bu sayilari degistir.
 const WEAPON_SPRITES = {
-  pistol:  { src: '/assets/weapons/pistol.png',  offsetX: 0, offsetY: -28, width: 30 },
+  pistol:  { src: '/assets/weapons/pistol.png',  offsetX: 0,   offsetY: -28, width: 30 },
   smg:     { src: '/assets/weapons/smg.png',     offsetX: -10, offsetY: -45, width: 60 },
   shotgun: { src: '/assets/weapons/shotgun.png', offsetX: -20, offsetY: -26, width: 70 },
   sniper:  { src: '/assets/weapons/sniper.png',  offsetX: -10, offsetY: -30, width: 80 },
   rocket:  { src: '/assets/weapons/rocket.png',  offsetX: -33, offsetY: -36, width: 80 },
-  grenade: { src: '/assets/weapons/grenade.png', offsetX: 8,  offsetY: -34, width: 16 },
+  grenade: { src: '/assets/weapons/grenade.png', offsetX: 8,   offsetY: -34, width: 16 },
 };
 const weaponImages = {};
 Object.entries(WEAPON_SPRITES).forEach(([key, cfg]) => {
@@ -324,7 +395,10 @@ for (let i = 1; i <= WALK_FRAME_COUNT; i++) {
   const img = new Image();
   img.onload = () => {
     framesLoadedCount++;
-    if (framesLoadedCount === WALK_FRAME_COUNT) precomputeTints();
+    if (framesLoadedCount === WALK_FRAME_COUNT) {
+      precomputeTints();
+      if (typeof drawAvatarPreview === 'function') drawAvatarPreview();
+    }
   };
   img.src = `/assets/character/walk_${i}.png`;
   walkFramesRaw.push(img);
@@ -1047,3 +1121,7 @@ function renderGame() {
     ctx.fillText(text, WORLD_W / 2, WORLD_H / 2 + 10);
   }
 }
+
+// ---- Sayfa yuklendiginde ilk kez renk secici ve onizlemeyi ciz ----
+renderColorRow();
+drawAvatarPreview();
