@@ -12,14 +12,11 @@ body {
   position: fixed;
   inset: 0;
   z-index: -1;
-  background-color: #7d8a5a;
-  background-image: repeating-linear-gradient(
-    45deg,
-    rgba(255,255,255,0.04) 0px,
-    rgba(255,255,255,0.04) 20px,
-    rgba(0,0,0,0.04) 20px,
-    rgba(0,0,0,0.04) 40px
-  );
+  background-color: #4fb0dd;
+  background-image: url('assets/menu/bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .hidden { display: none !important; }
@@ -77,142 +74,203 @@ body {
 
 /* ---- Panels ---- */
 .panel {
-  background: #171f1c;
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 8px;
-  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  background: linear-gradient(180deg, #8fd0ee, #6ab8de);
+  border: clamp(6px, 1vw, 11px) ridge #41a3e4;
+  border-radius: 20px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.4);
   width: 100%;
+  position: relative;
+  margin-top: 34px;
 }
-.roomlist-panel { max-width: 760px; padding: 20px; }
-.lobby-panel { max-width: 1040px; padding: 20px; }
+.roomlist-panel { max-width: 760px; padding: 24px 20px 20px; }
+.lobby-panel { max-width: 1040px; padding: 24px 20px 20px; }
+
+.panel-logo {
+  background-image: url('assets/menu/logo.png');
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: center;
+  width: min(320px, 60%);
+  height: 90px;
+  position: absolute;
+  top: -46px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,0.35));
+  pointer-events: none;
+}
 
 .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  border-bottom: 2px solid #b5482f;
+  border-bottom: 3px solid rgba(255,255,255,0.5);
   padding-bottom: 10px;
   margin-bottom: 14px;
 }
-.panel-header h2 { margin: 0; font-size: 20px; }
-.global-stats { font-size: 13px; color: #a8b0a0; }
+.panel-header h2 {
+  margin: 0;
+  font-size: 22px;
+  font-family: 'Ranchers', sans-serif;
+  letter-spacing: 1px;
+  color: #fff;
+  text-shadow: 0 2px 3px rgba(0,0,0,0.25);
+}
+.global-stats { font-size: 13px; color: #eaf6ff; }
 
 /* ---- Room list table ---- */
-.roomlist-table-wrap { min-height: 240px; }
-.roomlist-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.roomlist-table-wrap {
+  min-height: 240px;
+  background: rgba(255,255,255,0.35);
+  border-radius: 14px;
+  padding: 8px;
+}
+.roomlist-table { width: 100%; border-collapse: separate; border-spacing: 0 6px; font-size: 14px; }
 .roomlist-table thead th {
   text-align: left;
-  color: #8fa08a;
-  font-weight: 600;
-  padding: 6px 8px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  color: #0e3a55;
+  font-weight: 700;
+  font-family: 'Ranchers', sans-serif;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
 }
-.roomlist-table tbody td { padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.04); }
-.roomlist-table tbody tr:hover { background: rgba(255,255,255,0.04); }
-.room-name-cell { display: flex; align-items: center; gap: 6px; }
-.empty-hint { text-align: center; padding: 40px 0; color: #8fa08a; }
+.roomlist-table tbody tr { background: rgba(255,255,255,0.75); }
+.roomlist-table tbody td { padding: 9px 10px; color: #16323f; }
+.roomlist-table tbody tr td:first-child { border-radius: 10px 0 0 10px; }
+.roomlist-table tbody tr td:last-child { border-radius: 0 10px 10px 0; }
+.roomlist-table tbody tr:hover { background: rgba(255,255,255,0.95); }
+.room-name-cell { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.empty-hint { text-align: center; padding: 40px 0; color: #eaf6ff; font-weight: 600; }
 
 .roomlist-actions { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
 
 /* ---- Buttons ---- */
 .btn {
-  background: linear-gradient(#3a5a80, #2c4a6e);
+  background: linear-gradient(180deg, #5cb3ee, #3a8fd0);
   color: #fff;
-  border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 5px;
+  border: 4px ridge #2f7fb8;
+  border-radius: 12px;
   padding: 9px 16px;
   font-size: 14px;
+  font-family: 'Ranchers', sans-serif;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.25);
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 400;
 }
-.btn:hover { filter: brightness(1.15); }
+.btn:hover { filter: brightness(1.1); }
 .btn:active { transform: translateY(1px); }
-.btn-primary { background: linear-gradient(#3d7a4a, #2c5c37); }
-.btn-start { background: linear-gradient(#3d9a4a, #2c7c37); width: 100%; padding: 12px; font-size: 15px; margin-top: 16px; }
-.btn-small { padding: 4px 10px; font-size: 12px; }
+.btn-primary { background: linear-gradient(180deg, #ffb04d, #fe8d15); border-color: #c96a10; }
+.btn-start { background: linear-gradient(180deg, #ffb04d, #fe8d15); border-color: #c96a10; width: 100%; padding: 12px; font-size: 18px; margin-top: 16px; }
+.btn-small { padding: 4px 10px; font-size: 12px; border-width: 3px; border-radius: 8px; }
 
 /* ---- Modal ---- */
 .modal-overlay {
   position: fixed; inset: 0;
-  background: rgba(0,0,0,0.55);
+  background: rgba(10, 30, 45, 0.55);
   display: flex; align-items: center; justify-content: center;
   z-index: 50;
 }
 .modal {
-  background: #171f1c;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 8px;
+  background: linear-gradient(180deg, #8fd0ee, #6ab8de);
+  border: 8px ridge #41a3e4;
+  border-radius: 18px;
   padding: 24px;
   width: 340px;
-  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
 }
-.modal h3 { margin: 0 0 16px; border-bottom: 2px solid #b5482f; padding-bottom: 8px; }
-.modal label { display: block; font-size: 12px; color: #a8b0a0; margin: 12px 0 4px; }
+.modal h3 {
+  margin: 0 0 16px;
+  border-bottom: 3px solid rgba(255,255,255,0.5);
+  padding-bottom: 8px;
+  font-family: 'Ranchers', sans-serif;
+  font-size: 22px;
+  letter-spacing: 0.5px;
+  color: #fff;
+  text-shadow: 0 2px 3px rgba(0,0,0,0.25);
+}
+.modal label { display: block; font-size: 12px; color: #0e3a55; font-weight: 700; margin: 12px 0 4px; }
 .modal input[type=text], .modal input[type=number] {
   width: 100%;
   padding: 9px 10px;
-  border-radius: 5px;
-  border: 1px solid #3a4a3a;
-  background: #0f140f;
-  color: #fff;
+  border-radius: 10px;
+  border: 3px solid #2f7fb8;
+  background: rgba(255,255,255,0.9);
+  color: #16323f;
 }
-.checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-top: 14px; }
+.checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-top: 14px; color: #0e3a55; font-weight: 600; }
 .checkbox-row input { width: auto; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 
 /* ---- Lobby ---- */
 .lobby-top-actions { display: flex; align-items: center; gap: 10px; }
 .room-code-badge {
-  background: #0f140f;
-  border: 1px solid #3a4a3a;
-  padding: 5px 10px;
-  border-radius: 5px;
+  background: rgba(255,255,255,0.85);
+  border: 3px solid #2f7fb8;
+  padding: 5px 12px;
+  border-radius: 10px;
   font-size: 13px;
+  font-weight: 700;
   letter-spacing: 1px;
-  color: #c8d0c0;
+  color: #16323f;
 }
 
 .teams-row { display: flex; gap: 10px; margin-bottom: 14px; }
-.team-col { flex: 1; background: #0f140f; border-radius: 6px; min-height: 220px; padding: 8px; }
+.team-col {
+  flex: 1;
+  background: rgba(255,255,255,0.35);
+  border: 4px ridge rgba(255,255,255,0.5);
+  border-radius: 14px;
+  min-height: 220px;
+  padding: 8px;
+}
 .team-header {
   font-weight: 700;
+  font-family: 'Ranchers', sans-serif;
+  letter-spacing: 0.5px;
+  font-size: 17px;
   padding: 6px 4px 10px;
   display: flex; align-items: center; gap: 8px;
   justify-content: center;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
-.team-red .team-header { color: #e05c3f; }
-.team-blue .team-header { color: #4a90d9; justify-content: center; }
-.team-spectator .team-header { color: #a8b0a0; }
+.team-red .team-header { color: #e0402c; }
+.team-blue .team-header { color: #245a8a; justify-content: center; }
+.team-spectator .team-header { color: #16323f; }
 .arrow-btn {
-  background: rgba(255,255,255,0.08);
-  border: none; color: #fff; cursor: pointer;
-  border-radius: 4px; padding: 2px 8px; font-size: 13px;
+  background: rgba(255,255,255,0.5);
+  border: 2px solid rgba(255,255,255,0.7); color: #16323f; cursor: pointer;
+  border-radius: 6px; padding: 2px 8px; font-size: 13px; font-weight: 700;
 }
-.arrow-btn:hover { background: rgba(255,255,255,0.18); }
+.arrow-btn:hover { background: rgba(255,255,255,0.8); }
 .team-list { display: flex; flex-direction: column; gap: 4px; min-height: 60px; }
 .player-chip {
-  background: rgba(255,255,255,0.05);
+  background: rgba(255,255,255,0.75);
   padding: 6px 10px;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 13px;
+  font-weight: 600;
+  color: #16323f;
   display: flex; justify-content: space-between; align-items: center;
 }
-.player-chip .host-star { color: #f0c040; margin-left: 6px; }
+.player-chip .host-star { color: #d98a00; margin-left: 6px; }
 
 .host-tools { display: flex; gap: 8px; margin-bottom: 14px; }
 
 .settings-row { display: flex; gap: 16px; margin-bottom: 6px; flex-wrap: wrap; }
-.setting-item { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #a8b0a0; }
+.setting-item { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #0e3a55; font-weight: 700; }
 .setting-item input, .setting-item select {
-  padding: 7px 10px; border-radius: 5px; border: 1px solid #3a4a3a;
-  background: #0f140f; color: #fff; min-width: 120px;
+  padding: 7px 10px; border-radius: 10px; border: 3px solid #2f7fb8;
+  background: rgba(255,255,255,0.9); color: #16323f; min-width: 120px;
+  font-weight: 600;
 }
 .setting-item input:disabled, .setting-item select:disabled { opacity: 0.6; }
 
 .controls-legend {
   margin-top: 16px; padding-top: 12px;
-  border-top: 1px solid rgba(255,255,255,0.08);
-  font-size: 12px; color: #8fa08a;
+  border-top: 3px solid rgba(255,255,255,0.5);
+  font-size: 12px; color: #0e3a55; font-weight: 600;
 }
 
 .toast {
@@ -263,14 +321,15 @@ body {
   top: 3%;
   right: 2%;
   display: flex;
-  gap: 0.6%;
-  max-width: 70%;
-  flex-wrap: wrap;
+  gap: 0.4%;
+  max-width: 96%;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   pointer-events: none;
 }
 .hud-card {
-  width: 150px;
+  flex: 0 1 150px;
+  min-width: 90px;
   background: #eef0ec;
   border-radius: 6px;
   overflow: hidden;
