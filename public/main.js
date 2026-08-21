@@ -10,6 +10,9 @@ socket.on('connect', () => {
   if (myName) {
     socket.emit('setName', myName, () => {});
   }
+  if (selectedSkin) {
+    socket.emit('setSkin', selectedSkin, () => {});
+  }
 });
 
 // ---- Screen helpers ----
@@ -519,7 +522,7 @@ function updateTimerDisplay() {
 // ---- Silahlar (hasar/knockback sunucuda; burada gorsel+zamanlama parametreleri) ----
 const CLIENT_WEAPONS = {
   pistol:  { name: 'Pistol',  fireRateMs: 333,  bulletSpeed: 700,  lifespanMs: 1000, color: '#fff566', size: 3.5 },
-  smg:     { name: 'SMG',     fireRateMs: 100,  bulletSpeed: 750,  lifespanMs: 900,  color: '#cfe8ff', size: 2.5 },
+  smg:     { name: 'SMG',     fireRateMs: 100,  bulletSpeed: 750,  lifespanMs: 900,  color: '#cfe8ff', size: 2.5, auto: true },
   shotgun: { name: 'Shotgun', fireRateMs: 800,  bulletSpeed: 550,  lifespanMs: 500,  color: '#ffb066', size: 3,   pelletCount: 5, spreadDeg: 26 },
   sniper:  { name: 'Sniper',  fireRateMs: 1400, bulletSpeed: 1500, lifespanMs: 900,  color: '#ffffff', size: 2.2, trail: true },
   rocket:  { name: 'Roket',   fireRateMs: 1200, bulletSpeed: 420,  lifespanMs: 2000, color: '#ff8a3d', size: 7,   explosive: true, explosionRadius: 110 },
@@ -838,11 +841,12 @@ function gameLoop(now) {
     }
 
     // ---- Ates (U) ----
-    if (fireRequested) {
+    const currentWep = CLIENT_WEAPONS[myWeapon] || CLIENT_WEAPONS.pistol;
+    const wantsToFire = fireRequested || (currentWep.auto && keys.u);
+    if (wantsToFire) {
       fireRequested = false;
-      const wep = CLIENT_WEAPONS[myWeapon] || CLIENT_WEAPONS.pistol;
       const hasAmmo = myAmmo === Infinity || myAmmo > 0;
-      if (hasAmmo && now - lastFireTime > wep.fireRateMs) {
+      if (hasAmmo && now - lastFireTime > currentWep.fireRateMs) {
         lastFireTime = now;
         const vs = playerVisual[socket.id];
         const facing = vs ? vs.facing : 1;
