@@ -225,7 +225,7 @@ io.on('connection', (socket) => {
   socket.on('setSkin', (skin, cb) => {
     const info = players.get(socket.id);
     if (!info) return;
-    const allowed = ['blue', 'green', 'black', 'purple'];
+    const allowed = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'black', 'white', 'skin', 'brownLight', 'brownDark'];
     info.skin = allowed.includes(skin) ? skin : 'blue';
     cb && cb({ ok: true, skin: info.skin });
   });
@@ -380,7 +380,7 @@ io.on('connection', (socket) => {
         if (p.team === 'spectator') return;
         const sp = spawnList[idx % spawnList.length];
         idx++;
-        room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0 };
+        room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0, lastDodgeAt: 0 };
       });
     } else {
       let ri = 0, bi = 0;
@@ -389,11 +389,11 @@ io.on('connection', (socket) => {
       room.players.forEach(p => {
         if (p.team === 'red') {
           const sp = redSpawns[ri % redSpawns.length];
-          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0 };
+          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0, lastDodgeAt: 0 };
           ri++;
         } else if (p.team === 'blue') {
           const sp = blueSpawns[bi % blueSpawns.length];
-          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0 };
+          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0, lastDodgeAt: 0 };
           bi++;
         }
       });
@@ -528,6 +528,29 @@ io.on('connection', (socket) => {
     });
     if (bulletId) io.to(room.id).emit('bulletRemoved', { bulletId });
     io.to(room.id).emit('explosionFx', { x, y });
+  });
+
+  const DODGE_COOLDOWN_MS = 3000;
+  const DODGE_DURATION_MS = 500;
+  socket.on('activateDodge', () => {
+    const info = players.get(socket.id);
+    if (!info || !info.roomId) return;
+    const room = rooms.get(info.roomId);
+    if (!room || !room.game || !room.game.active) return;
+    const player = room.game.players[socket.id];
+    if (!player || player.eliminated || player.invulnerable) return;
+
+    const now = Date.now();
+    if (now - player.lastDodgeAt < DODGE_COOLDOWN_MS - 50) return; // hile/erken tekrar onleme
+    player.lastDodgeAt = now;
+    player.invulnerable = true;
+    io.to(room.id).emit('playersUpdate', room.game.players);
+    setTimeout(() => {
+      if (room.game && room.game.players[socket.id]) {
+        room.game.players[socket.id].invulnerable = false;
+        io.to(room.id).emit('playersUpdate', room.game.players);
+      }
+    }, DODGE_DURATION_MS);
   });
 
   socket.on('pickupCrate', ({ crateId }) => {
