@@ -341,6 +341,8 @@ let myVel = { x: 0, y: 0 };
 let onGround = false;
 let dropThroughUntil = 0;
 let stunUntil = 0;
+let lastDodgeTimeLocal = -9999;
+const DODGE_COOLDOWN_MS = 3000;
 let jumpRequested = false;
 let dropRequested = false;
 let fireRequested = false;
@@ -541,8 +543,15 @@ function isTypingInInput() {
   return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
 }
 
+let shiftHeld = false;
+let dodgeRequested = false;
+
 window.addEventListener('keydown', (e) => {
   if (isTypingInInput()) return; // chat'e yaziyorsa oyun tuslarini yok say
+  if (e.code === 'ShiftLeft' && !shiftHeld) {
+    shiftHeld = true;
+    dodgeRequested = true;
+  }
   const k = e.key.toLowerCase();
   if (!(k in keys)) return;
   if (k === 'w' && !keys.w) jumpRequested = true;
@@ -552,6 +561,7 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => {
   if (isTypingInInput()) return;
+  if (e.code === 'ShiftLeft') shiftHeld = false;
   const k = e.key.toLowerCase();
   if (k in keys) keys[k] = false;
 });
@@ -559,6 +569,7 @@ window.addEventListener('keyup', (e) => {
 // Sekme arka plana geçince/pencere odak kaybedince basili tuslar "takili" kalabiliyor - guvenlik icin sifirla
 function releaseAllKeys() {
   keys.w = false; keys.a = false; keys.s = false; keys.d = false; keys.u = false;
+  shiftHeld = false;
 }
 window.addEventListener('blur', releaseAllKeys);
 document.addEventListener('visibilitychange', () => {
@@ -829,7 +840,17 @@ function gameLoop(now) {
       dropRequested = false;
       if (onGround) dropThroughUntil = now + DROP_THROUGH_MS;
     }
-    const droppingThrough = now < dropThroughUntil;
+    // Havadayken S basiliysa (platforma hic degmeden geliyorsa) direkt gec
+    const droppingThrough = (now < dropThroughUntil) || (keys.s && !onGround);
+
+    // ---- Dodge / kisa sureli dokunulmazlik (Sol Shift) ----
+    if (dodgeRequested) {
+      dodgeRequested = false;
+      if (now - lastDodgeTimeLocal > DODGE_COOLDOWN_MS) {
+        lastDodgeTimeLocal = now;
+        socket.emit('activateDodge');
+      }
+    }
 
     // ---- Ziplama ----
     if (jumpRequested) {
