@@ -103,6 +103,7 @@ function roomStateForClient(room) {
       team: p.team,
       isHost: p.isHost,
       skin: p.skin,
+      hat: p.hat,
     })),
   };
 }
@@ -213,7 +214,7 @@ function checkEliminationWin(room) {
 }
 
 io.on('connection', (socket) => {
-  players.set(socket.id, { name: null, roomId: null, skin: 'blue' });
+  players.set(socket.id, { name: null, roomId: null, skin: 'blue', hat: 'none' });
 
   socket.on('setName', (name, cb) => {
     name = (name || '').toString().trim().slice(0, 20);
@@ -228,6 +229,14 @@ io.on('connection', (socket) => {
     const allowed = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'black', 'white', 'skin', 'brownLight', 'brownDark'];
     info.skin = allowed.includes(skin) ? skin : 'blue';
     cb && cb({ ok: true, skin: info.skin });
+  });
+
+  socket.on('setHat', (hat, cb) => {
+    const info = players.get(socket.id);
+    if (!info) return;
+    const allowed = ['none', 'hat1', 'hat2', 'hat3'];
+    info.hat = allowed.includes(hat) ? hat : 'none';
+    cb && cb({ ok: true, hat: info.hat });
   });
 
   socket.on('enterLobbyBrowser', (cb) => {
@@ -285,6 +294,7 @@ io.on('connection', (socket) => {
       team: 'spectator',
       isHost,
       skin: info.skin || 'blue',
+      hat: info.hat || 'none',
     });
     socket.leave('lobby-browser');
     broadcastRoomState(room.id);
@@ -380,7 +390,7 @@ io.on('connection', (socket) => {
         if (p.team === 'spectator') return;
         const sp = spawnList[idx % spawnList.length];
         idx++;
-        room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0, lastDodgeAt: 0 };
+        room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, hat: p.hat, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0, lastDodgeAt: 0 };
       });
     } else {
       let ri = 0, bi = 0;
@@ -389,11 +399,11 @@ io.on('connection', (socket) => {
       room.players.forEach(p => {
         if (p.team === 'red') {
           const sp = redSpawns[ri % redSpawns.length];
-          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0, lastDodgeAt: 0 };
+          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, hat: p.hat, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0, lastDodgeAt: 0 };
           ri++;
         } else if (p.team === 'blue') {
           const sp = blueSpawns[bi % blueSpawns.length];
-          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0, lastDodgeAt: 0 };
+          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, hat: p.hat, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0, lastDodgeAt: 0 };
           bi++;
         }
       });
