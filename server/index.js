@@ -15,6 +15,14 @@ const rooms = new Map();     // roomId -> RoomState
 const players = new Map();   // socket.id -> { name, roomId, skin }
 
 const MAPS_DIR = path.join(__dirname, '..', 'public', 'maps');
+const HATS_DIR = path.join(__dirname, '..', 'public', 'assets', 'hats');
+
+function loadHatList() {
+  if (!fs.existsSync(HATS_DIR)) return [];
+  return fs.readdirSync(HATS_DIR)
+    .filter(f => f.toLowerCase().endsWith('.png'))
+    .map(f => f.replace(/\.png$/i, ''));
+}
 
 function loadMaps() {
   const result = new Map();
@@ -234,9 +242,13 @@ io.on('connection', (socket) => {
   socket.on('setHat', (hat, cb) => {
     const info = players.get(socket.id);
     if (!info) return;
-    const allowed = ['none', 'hat1', 'hat2', 'hat3'];
+    const allowed = ['none', ...loadHatList()];
     info.hat = allowed.includes(hat) ? hat : 'none';
     cb && cb({ ok: true, hat: info.hat });
+  });
+
+  socket.on('getHats', (cb) => {
+    cb && cb(loadHatList());
   });
 
   socket.on('enterLobbyBrowser', (cb) => {
