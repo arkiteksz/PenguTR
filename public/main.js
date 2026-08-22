@@ -99,20 +99,24 @@ function drawAvatarPreview() {
 }
 
 // ---- Sapka secimi (ilk gercek kiyafet ozelligi) ----
-const HAT_OPTIONS = [
-  { id: 'none', name: 'Yok' },
-  { id: 'hat1', name: 'Şapka 1' },
-  { id: 'hat2', name: 'Şapka 2' },
-  { id: 'hat3', name: 'Şapka 3' },
-];
+let HAT_OPTIONS = [{ id: 'none', name: 'Yok' }];
 let selectedHat = 'none';
 const hatImages = {};
-HAT_OPTIONS.forEach(h => {
-  if (h.id === 'none') return;
+
+function ensureHatImageLoaded(id) {
+  if (hatImages[id]) return;
   const img = new Image();
-  img.src = `/assets/hats/${h.id}.png`; // dosya henuz yoksa sessizce yuklenmez
-  hatImages[h.id] = img;
-});
+  img.src = `/assets/hats/${id}.png`;
+  hatImages[id] = img;
+}
+
+function loadHatList(callback) {
+  socket.emit('getHats', (ids) => {
+    HAT_OPTIONS = [{ id: 'none', name: 'Yok' }, ...(ids || []).map(id => ({ id, name: id }))];
+    (ids || []).forEach(ensureHatImageLoaded);
+    callback && callback();
+  });
+}
 
 function drawHatOnto(ctxTarget, hatId, w, h) {
   const img = hatImages[hatId];
@@ -158,8 +162,10 @@ function renderHatGrid() {
 }
 
 document.getElementById('btnOpenHatPicker').addEventListener('click', () => {
-  renderHatGrid();
-  document.getElementById('modal-hat').classList.remove('hidden');
+  loadHatList(() => {
+    renderHatGrid();
+    document.getElementById('modal-hat').classList.remove('hidden');
+  });
 });
 document.getElementById('btnCloseHatModal').addEventListener('click', () => {
   document.getElementById('modal-hat').classList.add('hidden');
@@ -1234,3 +1240,4 @@ function renderGame() {
 // ---- Sayfa yuklendiginde ilk kez renk secici ve onizlemeyi ciz ----
 renderColorRow();
 drawAvatarPreview();
+loadHatList(); // herkesin sapka gorsellerini onceden yukle (baskasinin sapkasini gorebilmek icin)
