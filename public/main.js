@@ -13,8 +13,10 @@ socket.on('connect', () => {
   if (selectedSkin) {
     socket.emit('setSkin', selectedSkin, () => {});
   }
-  if (typeof selectedHat !== 'undefined' && selectedHat) {
-    socket.emit('setHat', selectedHat, () => {});
+  if (typeof selectedAppearance !== 'undefined') {
+    Object.keys(selectedAppearance).forEach(cat => {
+      socket.emit('setAppearance', { category: cat, value: selectedAppearance[cat] }, () => {});
+    });
   }
 });
 
@@ -90,48 +92,63 @@ function drawAvatarPreview() {
   const dx = (canvas.width - dw) / 2;
   const dy = (canvas.height - dh) / 2;
   ctx2.drawImage(tinted, dx, dy, dw, dh);
-  if (selectedHat && selectedHat !== 'none') {
-    ctx2.save();
-    ctx2.translate(dx + dw / 2, dy + dh);
-    drawHatOnto(ctx2, selectedHat, dw, dh);
-    ctx2.restore();
-  }
+  ctx2.save();
+  ctx2.translate(dx + dw / 2, dy + dh);
+  drawAppearanceLayers(ctx2, selectedAppearance, dw, dh);
+  ctx2.restore();
 }
 
-// ---- Sapka secimi (ilk gercek kiyafet ozelligi) ----
-let HAT_OPTIONS = [{ id: 'none', name: 'Yok' }];
-let selectedHat = 'none';
-const hatImages = {};
+// ---- Kiyafet/aksesuar secimi (Sac, Sakal, Sapka, Gozluk, Aksesuar - ortak sistem) ----
+const APPEARANCE_LABELS = { hat: 'Şapka', hair: 'Saç', beard: 'Sakal', glasses: 'Gözlük', accessory: 'Aksesuar' };
+// Katmanlarin cizim sirasi (alttan uste): sac -> sakal -> gozluk -> aksesuar -> sapka en ustte
+const APPEARANCE_LAYER_ORDER = ['hair', 'beard', 'glasses', 'accessory', 'hat'];
 
-function ensureHatImageLoaded(id) {
-  if (hatImages[id]) return;
+let selectedAppearance = { hat: 'none', hair: 'none', beard: 'none', glasses: 'none', accessory: 'none' };
+const appearanceOptions = { hat: [], hair: [], beard: [], glasses: [], accessory: [] };
+const appearanceImages = { hat: {}, hair: {}, beard: {}, glasses: {}, accessory: {} };
+let currentAppearanceCategory = null;
+
+function ensureAppearanceImageLoaded(category, id) {
+  if (appearanceImages[category][id]) return;
   const img = new Image();
-  img.src = `/assets/hats/${id}.png`;
-  hatImages[id] = img;
+  img.src = `/assets/${category === 'hat' ? 'hats' : category}/${id}.png`;
+  appearanceImages[category][id] = img;
 }
 
-function loadHatList(callback) {
-  socket.emit('getHats', (ids) => {
-    HAT_OPTIONS = [{ id: 'none', name: 'Yok' }, ...(ids || []).map(id => ({ id, name: id }))];
-    (ids || []).forEach(ensureHatImageLoaded);
+function loadAppearanceList(category, callback) {
+  socket.emit('getAppearanceList', category, (ids) => {
+    appearanceOptions[category] = ids || [];
+    (ids || []).forEach(id => ensureAppearanceImageLoaded(category, id));
     callback && callback();
   });
 }
 
-function drawHatOnto(ctxTarget, hatId, w, h) {
-  const img = hatImages[hatId];
+function loadAllAppearanceLists() {
+  Object.keys(APPEARANCE_LABELS).forEach(cat => loadAppearanceList(cat));
+}
+
+function drawAppearanceLayer(ctxTarget, category, id, w, h) {
+  if (!id || id === 'none') return;
+  const img = appearanceImages[category] && appearanceImages[category][id];
   if (!img || !img.complete || img.naturalWidth === 0) return;
   ctxTarget.drawImage(img, -w / 2, -h, w, h);
 }
 
-function renderHatGrid() {
-  const grid = document.getElementById('hatGrid');
+// Bir karakterin uzerine, secili tum katmanlari dogru sirada ciz (onizleme + oyun ici ortak kullanir)
+function drawAppearanceLayers(ctxTarget, appearance, w, h) {
+  APPEARANCE_LAYER_ORDER.forEach(cat => drawAppearanceLayer(ctxTarget, cat, appearance[cat], w, h));
+}
+
+function renderAppearanceGrid(category) {
+  const grid = document.getElementById('appearanceGrid');
   grid.innerHTML = '';
-  HAT_OPTIONS.forEach(h => {
+  const options = [{ id: 'none', name: 'Yok' }, ...appearanceOptions[category].map(id => ({ id, name: id }))];
+  options.forEach(opt => {
     const item = document.createElement('div');
-    item.className = 'hat-item' + (h.id === 'none' ? ' none-item' : '') + (h.id === selectedHat ? ' active' : '');
-    if (h.id === 'none') {
-      item.innerHTML = `<span>🚫</span><span>${h.name}</span>`;
+    const isActive = opt.id === selectedAppearance[category];
+    item.className = 'hat-item' + (opt.id === 'none' ? ' none-item' : '') + (isActive ? ' active' : '');
+    if (opt.id === 'none') {
+      item.innerHTML = `<span>🚫</span><span>${opt.name}</span>`;
     } else {
       const c = document.createElement('canvas');
       c.width = 140; c.height = 174;
@@ -144,40 +161,36 @@ function renderHatGrid() {
       }
       cctx.save();
       cctx.translate(c.width / 2, c.height);
-      drawHatOnto(cctx, h.id, c.width * 0.95, c.height * 0.98);
+      drawAppearanceLayer(cctx, category, opt.id, c.width * 0.95, c.height * 0.98);
       cctx.restore();
       item.appendChild(c);
       const label = document.createElement('span');
-      label.textContent = h.name;
+      label.textContent = opt.name;
       item.appendChild(label);
     }
     item.addEventListener('click', () => {
-      selectedHat = h.id;
-      document.getElementById('modal-hat').classList.add('hidden');
-      renderHatGrid();
+      selectedAppearance[category] = opt.id;
+      document.getElementById('modal-appearance').classList.add('hidden');
       drawAvatarPreview();
     });
     grid.appendChild(item);
   });
 }
 
-document.getElementById('btnOpenHatPicker').addEventListener('click', () => {
-  loadHatList(() => {
-    renderHatGrid();
-    document.getElementById('modal-hat').classList.remove('hidden');
-  });
-});
-document.getElementById('btnCloseHatModal').addEventListener('click', () => {
-  document.getElementById('modal-hat').classList.add('hidden');
-  nameInput.focus();
-});
-
-// Diger ozellikler henuz gorsel/dekoratif (ileride gercek olacak)
-document.querySelectorAll('.menu-opt-btn[data-feature]').forEach(btn => {
+document.querySelectorAll('.menu-opt-btn[data-category]').forEach(btn => {
   btn.addEventListener('click', () => {
-    showToast('Bu özellik yakında eklenecek!');
-    nameInput.focus();
+    const category = btn.dataset.category;
+    currentAppearanceCategory = category;
+    document.getElementById('appearanceModalTitle').textContent = (APPEARANCE_LABELS[category] || '') + ' Seç';
+    loadAppearanceList(category, () => {
+      renderAppearanceGrid(category);
+      document.getElementById('modal-appearance').classList.remove('hidden');
+    });
   });
+});
+document.getElementById('btnCloseAppearanceModal').addEventListener('click', () => {
+  document.getElementById('modal-appearance').classList.add('hidden');
+  nameInput.focus();
 });
 
 document.getElementById('btnBang').addEventListener('click', submitName);
@@ -188,9 +201,14 @@ function submitName() {
   socket.emit('setName', val, (res) => {
     myName = res.name;
     socket.emit('setSkin', selectedSkin, () => {
-      socket.emit('setHat', selectedHat, () => {
-        enterRoomList();
-      });
+      const categories = Object.keys(selectedAppearance);
+      let i = 0;
+      function sendNext() {
+        if (i >= categories.length) { enterRoomList(); return; }
+        const cat = categories[i++];
+        socket.emit('setAppearance', { category: cat, value: selectedAppearance[cat] }, () => sendNext());
+      }
+      sendNext();
     });
   });
 }
@@ -1145,9 +1163,7 @@ function renderGame() {
       ctx.fillStyle = SKIN_COLORS[p.skin] || '#888';
       ctx.fillRect(-SQUARE / 2, -SQUARE, SQUARE, SQUARE);
     }
-    if (p.hat && p.hat !== 'none') {
-      drawHatOnto(ctx, p.hat, DRAW_W, DRAW_H);
-    }
+    drawAppearanceLayers(ctx, p, DRAW_W, DRAW_H);
     const wepSprite = WEAPON_SPRITES[p.weapon];
     const wepImg = weaponImages[p.weapon];
     if (wepSprite && wepImg && wepImg.complete && wepImg.naturalWidth > 0) {
@@ -1240,4 +1256,4 @@ function renderGame() {
 // ---- Sayfa yuklendiginde ilk kez renk secici ve onizlemeyi ciz ----
 renderColorRow();
 drawAvatarPreview();
-loadHatList(); // herkesin sapka gorsellerini onceden yukle (baskasinin sapkasini gorebilmek icin)
+loadAllAppearanceLists(); // herkesin kiyafet/aksesuar gorsellerini onceden yukle (baskalarinda gorebilmek icin)
