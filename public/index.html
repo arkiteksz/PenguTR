@@ -28,11 +28,11 @@
     </div>
 
     <div class="menu-options-panel">
-      <button class="menu-opt-btn" data-feature="sac">SAÇ</button>
-      <button class="menu-opt-btn" data-feature="sakal">SAKAL</button>
-      <button class="menu-opt-btn" id="btnOpenHatPicker">ŞAPKA</button>
-      <button class="menu-opt-btn" data-feature="gozluk">GÖZLÜK</button>
-      <button class="menu-opt-btn" data-feature="aksesuar">AKSESUAR</button>
+      <button class="menu-opt-btn" data-category="hair">SAÇ</button>
+      <button class="menu-opt-btn" data-category="beard">SAKAL</button>
+      <button class="menu-opt-btn" data-category="hat">ŞAPKA</button>
+      <button class="menu-opt-btn" data-category="glasses">GÖZLÜK</button>
+      <button class="menu-opt-btn" data-category="accessory">AKSESUAR</button>
       <input id="nameInput" type="text" class="menu-name-input" placeholder="İSİM GİRİN" maxlength="20" autocomplete="off">
       <button class="menu-bang-btn" id="btnBang">BANG!!</button>
     </div>
@@ -40,12 +40,12 @@
 </div>
 
 <!-- ŞAPKA SEÇİM MODALI -->
-<div id="modal-hat" class="modal-overlay hidden">
+<div id="modal-appearance" class="modal-overlay hidden">
   <div class="modal hat-modal">
-    <h3>Şapka Seç</h3>
-    <div class="hat-grid" id="hatGrid"></div>
+    <h3 id="appearanceModalTitle">Şapka Seç</h3>
+    <div class="hat-grid" id="appearanceGrid"></div>
     <div class="modal-actions">
-      <button id="btnCloseHatModal" class="btn">Kapat</button>
+      <button id="btnCloseAppearanceModal" class="btn">Kapat</button>
     </div>
   </div>
 </div>
