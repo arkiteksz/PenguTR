@@ -460,15 +460,15 @@ let mapBgImage = null;
 
 // ---- Karakter sprite / renklendirme ----
 const SKIN_COLORS = {
-  red:         '#d9382c',
-  orange:      '#e8791f',
-  yellow:      '#f0c419',
-  green:       '#3d8f4a',
+  red:         '#FF2600',
+  orange:      '#FFA100',
+  yellow:      '#FFEA00',
+  green:       '#00FF2A',
   blue:        '#3d6fb0',
-  purple:      '#7a3d9e',
-  pink:        '#e0559c',
+  purple:      '#BB00FF',
+  pink:        '#FF00D0',
   black:       '#2a2a2a',
-  white:       '#e6e6e6',
+  white:       '#F5F5F5',
   skin:        '#d9a066',
   brownLight:  '#a06a3a',
   brownDark:   '#5c3a1e',
