@@ -13,6 +13,9 @@ socket.on('connect', () => {
   if (selectedSkin) {
     socket.emit('setSkin', selectedSkin, () => {});
   }
+  if (typeof selectedHat !== 'undefined' && selectedHat) {
+    socket.emit('setHat', selectedHat, () => {});
+  }
 });
 
 // ---- Screen helpers ----
@@ -84,11 +87,87 @@ function drawAvatarPreview() {
   const scale = Math.min(canvas.width / tinted.width, canvas.height / tinted.height);
   const dw = tinted.width * scale;
   const dh = tinted.height * scale;
-  ctx2.drawImage(tinted, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+  const dx = (canvas.width - dw) / 2;
+  const dy = (canvas.height - dh) / 2;
+  ctx2.drawImage(tinted, dx, dy, dw, dh);
+  if (selectedHat && selectedHat !== 'none') {
+    ctx2.save();
+    ctx2.translate(dx + dw / 2, dy + dh);
+    drawHatOnto(ctx2, selectedHat, dw, dh);
+    ctx2.restore();
+  }
 }
 
-// Su an icin gorsel/dekoratif ozellik butonlari (ileride gercek kiyafet secimi olacak)
-document.querySelectorAll('.menu-opt-btn').forEach(btn => {
+// ---- Sapka secimi (ilk gercek kiyafet ozelligi) ----
+const HAT_OPTIONS = [
+  { id: 'none', name: 'Yok' },
+  { id: 'hat1', name: 'Şapka 1' },
+  { id: 'hat2', name: 'Şapka 2' },
+  { id: 'hat3', name: 'Şapka 3' },
+];
+let selectedHat = 'none';
+const hatImages = {};
+HAT_OPTIONS.forEach(h => {
+  if (h.id === 'none') return;
+  const img = new Image();
+  img.src = `/assets/hats/${h.id}.png`; // dosya henuz yoksa sessizce yuklenmez
+  hatImages[h.id] = img;
+});
+
+function drawHatOnto(ctxTarget, hatId, w, h) {
+  const img = hatImages[hatId];
+  if (!img || !img.complete || img.naturalWidth === 0) return;
+  ctxTarget.drawImage(img, -w / 2, -h, w, h);
+}
+
+function renderHatGrid() {
+  const grid = document.getElementById('hatGrid');
+  grid.innerHTML = '';
+  HAT_OPTIONS.forEach(h => {
+    const item = document.createElement('div');
+    item.className = 'hat-item' + (h.id === 'none' ? ' none-item' : '') + (h.id === selectedHat ? ' active' : '');
+    if (h.id === 'none') {
+      item.innerHTML = `<span>🚫</span><span>${h.name}</span>`;
+    } else {
+      const c = document.createElement('canvas');
+      c.width = 140; c.height = 174;
+      const cctx = c.getContext('2d');
+      const bodyTinted = getTintedFrame(selectedSkin, 0);
+      if (bodyTinted) {
+        const scale = Math.min(c.width / bodyTinted.width, c.height / bodyTinted.height);
+        const dw = bodyTinted.width * scale, dh = bodyTinted.height * scale;
+        cctx.drawImage(bodyTinted, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh);
+      }
+      cctx.save();
+      cctx.translate(c.width / 2, c.height);
+      drawHatOnto(cctx, h.id, c.width * 0.95, c.height * 0.98);
+      cctx.restore();
+      item.appendChild(c);
+      const label = document.createElement('span');
+      label.textContent = h.name;
+      item.appendChild(label);
+    }
+    item.addEventListener('click', () => {
+      selectedHat = h.id;
+      document.getElementById('modal-hat').classList.add('hidden');
+      renderHatGrid();
+      drawAvatarPreview();
+    });
+    grid.appendChild(item);
+  });
+}
+
+document.getElementById('btnOpenHatPicker').addEventListener('click', () => {
+  renderHatGrid();
+  document.getElementById('modal-hat').classList.remove('hidden');
+});
+document.getElementById('btnCloseHatModal').addEventListener('click', () => {
+  document.getElementById('modal-hat').classList.add('hidden');
+  nameInput.focus();
+});
+
+// Diger ozellikler henuz gorsel/dekoratif (ileride gercek olacak)
+document.querySelectorAll('.menu-opt-btn[data-feature]').forEach(btn => {
   btn.addEventListener('click', () => {
     showToast('Bu özellik yakında eklenecek!');
     nameInput.focus();
@@ -103,7 +182,9 @@ function submitName() {
   socket.emit('setName', val, (res) => {
     myName = res.name;
     socket.emit('setSkin', selectedSkin, () => {
-      enterRoomList();
+      socket.emit('setHat', selectedHat, () => {
+        enterRoomList();
+      });
     });
   });
 }
@@ -1057,6 +1138,9 @@ function renderGame() {
     } else {
       ctx.fillStyle = SKIN_COLORS[p.skin] || '#888';
       ctx.fillRect(-SQUARE / 2, -SQUARE, SQUARE, SQUARE);
+    }
+    if (p.hat && p.hat !== 'none') {
+      drawHatOnto(ctx, p.hat, DRAW_W, DRAW_H);
     }
     const wepSprite = WEAPON_SPRITES[p.weapon];
     const wepImg = weaponImages[p.weapon];
