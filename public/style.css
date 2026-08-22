@@ -643,3 +643,35 @@ body {
   .menu-avatar-panel, .menu-options-panel { min-height: unset; width: 100%; }
   .menu-avatar-canvas { width: 170px; height: 212px; }
 }
+
+/* ---- Sapka secim modali ---- */
+.hat-modal { width: 360px; }
+.hat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.hat-item {
+  background: rgba(255,255,255,0.6);
+  border: 4px ridge #2f7fb8;
+  border-radius: 12px;
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.hat-item:hover { background: rgba(255,255,255,0.85); }
+.hat-item.active { border-color: #f0c040; box-shadow: 0 0 0 3px rgba(240,192,64,0.5); }
+.hat-item canvas { width: 70px; height: 87px; }
+.hat-item span {
+  font-family: 'Ranchers', sans-serif;
+  font-size: 13px;
+  color: #16323f;
+  text-align: center;
+}
+.hat-item.none-item span { font-size: 20px; }
