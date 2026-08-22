@@ -15,11 +15,21 @@ const rooms = new Map();     // roomId -> RoomState
 const players = new Map();   // socket.id -> { name, roomId, skin }
 
 const MAPS_DIR = path.join(__dirname, '..', 'public', 'maps');
-const HATS_DIR = path.join(__dirname, '..', 'public', 'assets', 'hats');
+// Kiyafet/aksesuar kategorileri - her biri public/assets/<klasor>/ altindan otomatik okunur
+const APPEARANCE_CATEGORIES = {
+  hat: 'hats',
+  hair: 'hair',
+  beard: 'beard',
+  glasses: 'glasses',
+  accessory: 'accessory',
+};
 
-function loadHatList() {
-  if (!fs.existsSync(HATS_DIR)) return [];
-  return fs.readdirSync(HATS_DIR)
+function loadCategoryList(category) {
+  const dirName = APPEARANCE_CATEGORIES[category];
+  if (!dirName) return [];
+  const dir = path.join(__dirname, '..', 'public', 'assets', dirName);
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir)
     .filter(f => f.toLowerCase().endsWith('.png'))
     .map(f => f.replace(/\.png$/i, ''));
 }
@@ -112,6 +122,10 @@ function roomStateForClient(room) {
       isHost: p.isHost,
       skin: p.skin,
       hat: p.hat,
+      hair: p.hair,
+      beard: p.beard,
+      glasses: p.glasses,
+      accessory: p.accessory,
     })),
   };
 }
@@ -222,7 +236,7 @@ function checkEliminationWin(room) {
 }
 
 io.on('connection', (socket) => {
-  players.set(socket.id, { name: null, roomId: null, skin: 'blue', hat: 'none' });
+  players.set(socket.id, { name: null, roomId: null, skin: 'blue', hat: 'none', hair: 'none', beard: 'none', glasses: 'none', accessory: 'none' });
 
   socket.on('setName', (name, cb) => {
     name = (name || '').toString().trim().slice(0, 20);
@@ -239,16 +253,16 @@ io.on('connection', (socket) => {
     cb && cb({ ok: true, skin: info.skin });
   });
 
-  socket.on('setHat', (hat, cb) => {
-    const info = players.get(socket.id);
-    if (!info) return;
-    const allowed = ['none', ...loadHatList()];
-    info.hat = allowed.includes(hat) ? hat : 'none';
-    cb && cb({ ok: true, hat: info.hat });
+  socket.on('getAppearanceList', (category, cb) => {
+    cb && cb(loadCategoryList(category));
   });
 
-  socket.on('getHats', (cb) => {
-    cb && cb(loadHatList());
+  socket.on('setAppearance', ({ category, value }, cb) => {
+    const info = players.get(socket.id);
+    if (!info || !APPEARANCE_CATEGORIES[category]) return;
+    const allowed = ['none', ...loadCategoryList(category)];
+    info[category] = allowed.includes(value) ? value : 'none';
+    cb && cb({ ok: true, category, value: info[category] });
   });
 
   socket.on('enterLobbyBrowser', (cb) => {
@@ -307,6 +321,10 @@ io.on('connection', (socket) => {
       isHost,
       skin: info.skin || 'blue',
       hat: info.hat || 'none',
+      hair: info.hair || 'none',
+      beard: info.beard || 'none',
+      glasses: info.glasses || 'none',
+      accessory: info.accessory || 'none',
     });
     socket.leave('lobby-browser');
     broadcastRoomState(room.id);
@@ -402,7 +420,7 @@ io.on('connection', (socket) => {
         if (p.team === 'spectator') return;
         const sp = spawnList[idx % spawnList.length];
         idx++;
-        room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, hat: p.hat, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0, lastDodgeAt: 0 };
+        room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, hat: p.hat, hair: p.hair, beard: p.beard, glasses: p.glasses, accessory: p.accessory, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0, lastDodgeAt: 0 };
       });
     } else {
       let ri = 0, bi = 0;
@@ -411,11 +429,11 @@ io.on('connection', (socket) => {
       room.players.forEach(p => {
         if (p.team === 'red') {
           const sp = redSpawns[ri % redSpawns.length];
-          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, hat: p.hat, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0, lastDodgeAt: 0 };
+          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, hat: p.hat, hair: p.hair, beard: p.beard, glasses: p.glasses, accessory: p.accessory, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0, lastDodgeAt: 0 };
           ri++;
         } else if (p.team === 'blue') {
           const sp = blueSpawns[bi % blueSpawns.length];
-          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, hat: p.hat, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0, lastDodgeAt: 0 };
+          room.game.players[p.id] = { x: sp.x, y: sp.y, name: p.name, team: p.team, skin: p.skin, hat: p.hat, hair: p.hair, beard: p.beard, glasses: p.glasses, accessory: p.accessory, health: 100, stocks: room.settings.stockLimit, eliminated: false, invulnerable: false, weapon: 'pistol', ammo: Infinity, lastShotAt: 0, lastDodgeAt: 0 };
           bi++;
         }
       });
