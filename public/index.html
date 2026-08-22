@@ -30,11 +30,22 @@
     <div class="menu-options-panel">
       <button class="menu-opt-btn" data-feature="sac">SAÇ</button>
       <button class="menu-opt-btn" data-feature="sakal">SAKAL</button>
-      <button class="menu-opt-btn" data-feature="sapka">ŞAPKA</button>
+      <button class="menu-opt-btn" id="btnOpenHatPicker">ŞAPKA</button>
       <button class="menu-opt-btn" data-feature="gozluk">GÖZLÜK</button>
       <button class="menu-opt-btn" data-feature="aksesuar">AKSESUAR</button>
       <input id="nameInput" type="text" class="menu-name-input" placeholder="İSİM GİRİN" maxlength="20" autocomplete="off">
       <button class="menu-bang-btn" id="btnBang">BANG!!</button>
+    </div>
+  </div>
+</div>
+
+<!-- ŞAPKA SEÇİM MODALI -->
+<div id="modal-hat" class="modal-overlay hidden">
+  <div class="modal hat-modal">
+    <h3>Şapka Seç</h3>
+    <div class="hat-grid" id="hatGrid"></div>
+    <div class="modal-actions">
+      <button id="btnCloseHatModal" class="btn">Kapat</button>
     </div>
   </div>
 </div>
